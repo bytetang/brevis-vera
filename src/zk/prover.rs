@@ -664,7 +664,7 @@ impl PicoProver {
 
         // Create Pico prover client
         let client = DefaultProverClient::new(&self.elf);
-        let mut stdin_builder = client.get_stdin_builder();
+        let mut stdin_builder = client.new_stdin_builder();
 
         // Write circuit input to ZKVM stdin
         stdin_builder.write(&circuit_input);
