@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 description = "End-to-end digital media authenticity attestation system"
 
+[[bin]]
+name = "brevis-vera"
+path = "src/main.rs"
+
 [features]
 default = []
 ## Enable the Pico ZKVM prover backend for real STARK/SNARK proof generation.
@@ -26,6 +30,7 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
 uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
+tempfile = "3"
 
 # Pico ZKVM (optional — enabled by the "pico" feature)
 pico-sdk = { git = "https://github.com/brevis-network/pico", optional = true }

@@ -10,3 +10,6 @@
 
 certs/
 zk-guest/target/*
+
+node_modules
+frontend/dist

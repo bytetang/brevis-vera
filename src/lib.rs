@@ -37,3 +37,13 @@
 pub mod editor;
 pub mod provenance;
 pub mod zk;
+
+// Re-export API modules for server
+pub mod api {
+    pub mod provenance_api {
+        pub use crate::provenance::api::*;
+    }
+    pub mod zk_api {
+        pub use crate::zk::api::*;
+    }
+}

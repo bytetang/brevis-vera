@@ -42,6 +42,7 @@
 //! }
 //! ```
 
+pub mod api;
 pub mod extractor;
 pub mod parser;
 pub mod reader;

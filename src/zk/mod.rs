@@ -58,6 +58,7 @@
 //! - [Pico ZKVM GitHub](https://github.com/brevis-network/pico)
 //! - [brevis-network/signatures](https://github.com/brevis-network/signatures) — ECDSA P-256 circuits
 
+pub mod api;
 pub mod circuits;
 pub mod prover;
 pub mod types;
