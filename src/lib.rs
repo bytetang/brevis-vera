@@ -11,10 +11,10 @@
 //! 3. **ZK Proof Layer** - Generates zero-knowledge proofs in ZKVM
 //! 4. **Verification Layer** - Verifies proofs and reports authenticity
 //!
-//! # Current Module
+//! # Modules
 //!
-//! The `provenance` module implements the Capture & Provenance Layer,
-//! extracting C2PA metadata and preparing data for the ZK Proof Layer.
+//! - [`provenance`] — Capture & Provenance Layer: C2PA metadata extraction
+//! - [`editor`] — Editing Layer: image transformations and REST API
 //!
 //! # Example
 //!
@@ -33,4 +33,5 @@
 //! }
 //! ```
 
+pub mod editor;
 pub mod provenance;
