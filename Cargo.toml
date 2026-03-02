@@ -1,0 +1,16 @@
+[package]
+name = "brevis-vera"
+version = "0.1.0"
+edition = "2024"
+description = "End-to-end digital media authenticity attestation system"
+
+[dependencies]
+c2pa = { version = "0.36", features = ["file_io"] }
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+hex = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

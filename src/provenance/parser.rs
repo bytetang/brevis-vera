@@ -1,0 +1,186 @@
+//! C2PA metadata parser.
+//!
+//! Extracts C2PA metadata from media files using the `c2pa` crate's stable
+//! `ManifestStore` API. The parsed metadata includes signature information,
+//! assertions/claims, and ingredient references.
+//!
+//! # C2PA Standard
+//!
+//! C2PA (Coalition for Content Provenance and Authenticity) uses ECDSA P-256
+//! for digital signatures. The actual signature verification happens inside
+//! the ZKVM circuit for privacy-preserving verification — this module only
+//! *extracts* the metadata; it does not verify signatures.
+//!
+//! # Parsing Strategy
+//!
+//! This module uses the `c2pa` crate's `ManifestStore::from_file` to load
+//! the manifest data, then extracts fields via the typed Rust API. The full
+//! manifest store is also serialized to JSON and preserved in
+//! [`C2paMetadata::raw_manifest_store`] for downstream consumers.
+
+use std::path::Path;
+
+use super::types::{C2paMetadata, ClaimAssertion, Ingredient, ProvenanceError, SignatureInfo};
+
+/// Parse C2PA metadata from a media file.
+///
+/// Returns `Ok(None)` if the file contains no C2PA metadata.
+/// Returns `Ok(Some(metadata))` if C2PA metadata was found and parsed.
+///
+/// # Arguments
+/// * `path` - Path to a media file (JPEG or PNG)
+///
+/// # Returns
+/// * `None` if no C2PA manifest is embedded in the file
+/// * `Some(C2paMetadata)` with all extracted provenance data
+///
+/// # Errors
+/// * [`ProvenanceError::C2paError`] if parsing fails for reasons other than
+///   missing metadata
+pub fn parse_c2pa(path: &Path) -> Result<Option<C2paMetadata>, ProvenanceError> {
+    let store = match c2pa::ManifestStore::from_file(path) {
+        Ok(s) => s,
+        Err(e) => {
+            // c2pa returns an error when no JUMBF/manifest is found in the file.
+            // We treat this as "no metadata present" rather than a hard error.
+            let err_str = e.to_string().to_lowercase();
+            if err_str.contains("jumbf")
+                || err_str.contains("not found")
+                || err_str.contains("no manifest")
+                || err_str.contains("unsupported")
+            {
+                return Ok(None);
+            }
+            return Err(ProvenanceError::C2paError(e.to_string()));
+        }
+    };
+
+    // Get the active manifest
+    let active_manifest_obj = match store.get_active() {
+        Some(m) => m,
+        None => return Ok(None),
+    };
+
+    let active_label = store.active_label().unwrap_or("unknown").to_string();
+
+    // Serialize the full manifest store to JSON for reference
+    let raw_manifest_store =
+        serde_json::to_value(&store).unwrap_or(serde_json::Value::Null);
+
+    // Extract fields from the active manifest using the typed Rust API
+    let claim_generator = active_manifest_obj.claim_generator().to_string();
+    let title = active_manifest_obj.title().map(String::from);
+    let format = active_manifest_obj.format().to_string();
+
+    let signature_info = extract_signature_info(active_manifest_obj);
+    let assertions = extract_assertions(active_manifest_obj);
+    let ingredients = extract_ingredients(active_manifest_obj);
+
+    Ok(Some(C2paMetadata {
+        active_manifest: active_label,
+        claim_generator,
+        title,
+        format,
+        signature_info,
+        assertions,
+        ingredients,
+        raw_manifest_store,
+    }))
+}
+
+/// Extract signature information from a C2PA [`c2pa::Manifest`].
+fn extract_signature_info(manifest: &c2pa::Manifest) -> Option<SignatureInfo> {
+    let sig = manifest.signature_info()?;
+
+    Some(SignatureInfo {
+        issuer: sig.issuer.clone(),
+        time: sig.time.clone(),
+        cert_serial_number: sig.cert_serial_number.clone(),
+        alg: sig.alg.as_ref().map(|a| a.to_string()),
+    })
+}
+
+/// Extract assertions/claims from a C2PA [`c2pa::Manifest`].
+fn extract_assertions(manifest: &c2pa::Manifest) -> Vec<ClaimAssertion> {
+    manifest
+        .assertions()
+        .iter()
+        .map(|a| ClaimAssertion {
+            label: a.label().to_string(),
+            data: a.value().cloned().unwrap_or(serde_json::Value::Null),
+        })
+        .collect()
+}
+
+/// Extract ingredient references from a C2PA [`c2pa::Manifest`].
+fn extract_ingredients(manifest: &c2pa::Manifest) -> Vec<Ingredient> {
+    manifest
+        .ingredients()
+        .iter()
+        .map(|i| Ingredient {
+            title: Some(i.title().to_string()),
+            format: Some(i.format().to_string()),
+            relationship: Some(format!("{:?}", i.relationship())),
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn test_image_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("imgs/test_img.JPG")
+    }
+
+    #[test]
+    fn test_parse_nonexistent_file() {
+        let result = parse_c2pa(Path::new("/nonexistent/file.jpg"));
+        // Should be an error (IO) or None (if c2pa treats it as missing metadata)
+        assert!(result.is_err() || result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_parse_test_image() {
+        let path = test_image_path();
+        if !path.exists() {
+            eprintln!("Skipping: test image not found at {:?}", path);
+            return;
+        }
+
+        let result = parse_c2pa(&path);
+        // Should either succeed with metadata or succeed with None
+        match result {
+            Ok(Some(metadata)) => {
+                assert!(!metadata.active_manifest.is_empty());
+                assert!(!metadata.claim_generator.is_empty());
+                assert!(!metadata.format.is_empty());
+                // Raw manifest store should be populated
+                assert!(!metadata.raw_manifest_store.is_null());
+            }
+            Ok(None) => {
+                eprintln!("Test image has no C2PA metadata");
+            }
+            Err(e) => {
+                panic!("Failed to parse test image: {}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_plain_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("plain.jpg");
+
+        // Minimal JPEG without C2PA
+        let jpeg: Vec<u8> = vec![
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00,
+            0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
+        ];
+        std::fs::write(&path, &jpeg).unwrap();
+
+        let result = parse_c2pa(&path).unwrap();
+        assert!(result.is_none(), "Plain JPEG should have no C2PA metadata");
+    }
+}
