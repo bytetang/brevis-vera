@@ -21,11 +21,17 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::zk::prover::{SimulatedProver, ZkProver};
+#[cfg(feature = "pico")]
+use crate::zk::prover::PicoProver;
 use crate::zk::types::{
     C2paProofInput, CombinedProofInput, EditingProofInput, EditingRecordInput,
     ZkProof, ZkError,
 };
 use crate::provenance::types::C2paVerificationData;
+
+/// Default path to the Pico ZKVM guest ELF binary (resolved relative to project root).
+#[cfg(feature = "pico")]
+const DEFAULT_ELF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/zk-guest/app/elf/riscv32im-pico-zkvm-elf");
 
 // ---------------------------------------------------------------------------
 // Request/Response types
@@ -149,6 +155,9 @@ pub fn zk_router() -> Router {
 
 /// Handle `POST /api/v1/zk/prove`.
 async fn handle_prove(Json(req): Json<ZkProveRequest>) -> impl IntoResponse {
+    tracing::info!("Received prove request: proof_type={}", req.proof_type);
+    tracing::debug!("Request details: {:?}", req);
+
     // Validate request
     if req.original_image_hash.is_empty() {
         return error_response(
@@ -164,14 +173,30 @@ async fn handle_prove(Json(req): Json<ZkProveRequest>) -> impl IntoResponse {
         );
     }
 
-    // Create prover (using SimulatedProver for now)
-    let prover = SimulatedProver::new();
+    // Create prover: use PicoProver (real ZKVM) when compiled with
+    // the "pico" feature, otherwise fall back to SimulatedProver.
+    #[cfg(feature = "pico")]
+    let prover: Box<dyn ZkProver> = match PicoProver::new(DEFAULT_ELF_PATH) {
+        Ok(p) => {
+            tracing::info!("Using PicoProver (real ZKVM)");
+            Box::new(p)
+        }
+        Err(e) => {
+            tracing::warn!("PicoProver unavailable ({}), falling back to SimulatedProver", e);
+            Box::new(SimulatedProver::new())
+        }
+    };
+    #[cfg(not(feature = "pico"))]
+    let prover: Box<dyn ZkProver> = {
+        tracing::info!("Using SimulatedProver (compile with --features pico for real proofs)");
+        Box::new(SimulatedProver::new())
+    };
 
     // Generate proof based on type
     let result = match req.proof_type.as_str() {
-        "c2pa" => generate_c2pa_proof(&prover, &req),
-        "editing" => generate_editing_proof(&prover, &req),
-        "combined" => generate_combined_proof(&prover, &req),
+        "c2pa" => generate_c2pa_proof(prover.as_ref(), &req),
+        "editing" => generate_editing_proof(prover.as_ref(), &req),
+        "combined" => generate_combined_proof(prover.as_ref(), &req),
         _ => {
             return error_response(
                 StatusCode::BAD_REQUEST,
@@ -182,6 +207,13 @@ async fn handle_prove(Json(req): Json<ZkProveRequest>) -> impl IntoResponse {
 
     match result {
         Ok(proof) => {
+            tracing::info!(
+                "Proof generated successfully: type={}, time_ms={}",
+                req.proof_type,
+                proof.metadata.generation_time_ms
+            );
+            tracing::debug!("Proof metadata: {:?}", proof.metadata);
+
             // Build response
             let proof_base64 = base64::Engine::encode(
                 &base64::engine::general_purpose::STANDARD,
@@ -212,13 +244,16 @@ async fn handle_prove(Json(req): Json<ZkProveRequest>) -> impl IntoResponse {
 
             (StatusCode::OK, Json(serde_json::to_value(response).unwrap()))
         }
-        Err(e) => error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+        Err(e) => {
+            tracing::error!("Proof generation failed: {}", e);
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
+        }
     }
 }
 
 /// Generate a C2PA-only proof.
 fn generate_c2pa_proof(
-    prover: &SimulatedProver,
+    prover: &dyn ZkProver,
     req: &ZkProveRequest,
 ) -> Result<ZkProof, ZkError> {
     let c2pa_data = req
@@ -250,7 +285,7 @@ fn generate_c2pa_proof(
 
 /// Generate an editing-only proof.
 fn generate_editing_proof(
-    prover: &SimulatedProver,
+    prover: &dyn ZkProver,
     req: &ZkProveRequest,
 ) -> Result<ZkProof, ZkError> {
     if req.editing_records.is_empty() {
@@ -276,7 +311,7 @@ fn generate_editing_proof(
 
 /// Generate a combined proof (C2PA + editing).
 fn generate_combined_proof(
-    prover: &SimulatedProver,
+    prover: &dyn ZkProver,
     req: &ZkProveRequest,
 ) -> Result<ZkProof, ZkError> {
     let c2pa_data = req.c2pa_data.as_ref().map(|c| {

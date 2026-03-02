@@ -209,8 +209,12 @@ fn verify_crop(record: &EditingRecordInput) -> OperationVerifyResult {
 fn verify_resize(record: &EditingRecordInput) -> OperationVerifyResult {
     let params = &record.parameters;
 
-    let width = params.get("width").and_then(|v| v.as_u64());
-    let height = params.get("height").and_then(|v| v.as_u64());
+    // The editor stores resize dimensions as "new_width"/"new_height",
+    // but also accept "width"/"height" for direct API usage.
+    let width = params.get("new_width").and_then(|v| v.as_u64())
+        .or_else(|| params.get("width").and_then(|v| v.as_u64()));
+    let height = params.get("new_height").and_then(|v| v.as_u64())
+        .or_else(|| params.get("height").and_then(|v| v.as_u64()));
 
     if width.is_none() || height.is_none() {
         return OperationVerifyResult {

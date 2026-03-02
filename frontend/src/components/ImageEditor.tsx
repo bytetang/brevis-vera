@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, Button, InputNumber, Space, Divider, Spin, message } from 'antd';
 import { ScissorOutlined, ExpandOutlined, SwapOutlined } from '@ant-design/icons';
 import type { EditingRecord } from '../types';
+import { cropImage, resizeImage, rotateImage } from '../services/api';
 
 interface ImageEditorProps {
   imageBase64: string;
@@ -14,22 +15,12 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ imageBase64, onImageEdited, d
   const [cropParams, setCropParams] = useState({ x: 0, y: 0, width: 100, height: 100 });
   const [resizeParams, setResizeParams] = useState({ width: 800, height: 600 });
 
-  // Mock editing functions - in real implementation, call backend API
   const handleCrop = async () => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      // In real implementation: call cropImage API
-      const mockRecord: EditingRecord = {
-        operation: 'Crop',
-        parameters: cropParams,
-        input_hash: 'mock_input_hash',
-        output_hash: 'mock_output_hash',
-      };
+      const response = await cropImage(imageBase64, cropParams);
       message.success('Image cropped successfully');
-      // Pass back mock result - in real app, get edited image from API
-      onImageEdited(imageBase64, mockRecord);
+      onImageEdited(response.edited_image_base64, response.editing_record);
     } catch (error) {
       message.error('Crop failed');
     } finally {
@@ -40,15 +31,9 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ imageBase64, onImageEdited, d
   const handleResize = async () => {
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const mockRecord: EditingRecord = {
-        operation: 'Resize',
-        parameters: resizeParams,
-        input_hash: 'mock_input_hash',
-        output_hash: 'mock_output_hash',
-      };
+      const response = await resizeImage(imageBase64, resizeParams);
       message.success('Image resized successfully');
-      onImageEdited(imageBase64, mockRecord);
+      onImageEdited(response.edited_image_base64, response.editing_record);
     } catch (error) {
       message.error('Resize failed');
     } finally {
@@ -59,15 +44,9 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ imageBase64, onImageEdited, d
   const handleRotate = async (angle: 90 | 180 | 270) => {
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const mockRecord: EditingRecord = {
-        operation: 'Rotate',
-        parameters: { angle },
-        input_hash: 'mock_input_hash',
-        output_hash: 'mock_output_hash',
-      };
+      const response = await rotateImage(imageBase64, { angle });
       message.success(`Image rotated ${angle} degrees`);
-      onImageEdited(imageBase64, mockRecord);
+      onImageEdited(response.edited_image_base64, response.editing_record);
     } catch (error) {
       message.error('Rotate failed');
     } finally {

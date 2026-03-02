@@ -10,7 +10,7 @@ import type {
   EditingRecord,
   ZKProofResponse,
 } from './types';
-// import { extractProvenance, generateProof } from './services/api';
+import { extractProvenance, generateProof } from './services/api';
 
 const { Header, Content } = Layout;
 
@@ -32,24 +32,15 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // In real implementation, call the API
-      // const response = await extractProvenance(file);
-      // Mock response for demo
-      const mockMetadata: C2PAMetadata = {
-        active_manifest: 'test_manifest',
-        claim_generator: 'Sony ILCE-1',
-        algorithm: 'ES256',
-        device_info: {
-          model: 'ILCE-1',
-          manufacturer: 'Sony',
-        },
-        timestamp: '2026-03-02T10:16:38Z',
-      };
+      // Call the API to extract provenance
+      const response = await extractProvenance(base64);
 
       setOriginalImage(base64);
-      setC2paMetadata(mockMetadata);
-      setHasC2PA(true);
-      setOriginalImageHash('mock_hash_' + Date.now());
+      if (response.metadata) {
+        setC2paMetadata(response.metadata);
+      }
+      setHasC2PA(response.has_c2pa);
+      setOriginalImageHash(response.original_image_hash);
       setCurrentStep(1);
       message.success('Image uploaded successfully');
     } catch (err) {
@@ -76,24 +67,23 @@ const App: React.FC = () => {
 
     setLoading(true);
     try {
-      // In real implementation, call the API
-      // const response = await generateProof({...});
-      // Mock response for demo
-      const mockProof: ZKProofResponse = {
-        proof_base64: 'mock_proof_data',
-        public_inputs: {
-          c2pa_verified: hasC2PA,
-          editing_verified: editingRecords.length > 0,
-          operations_applied: editingRecords.map((r) => r.operation as any),
-        },
-        metadata: {
-          prover_type: 'pico',
-          generation_time_ms: 5000,
-          proof_size: 1024,
-        },
-      };
+      // Get the edited image hash from the last editing record
+      const lastRecord = editingRecords[editingRecords.length - 1];
+      const editedImageHash = lastRecord?.output_hash || originalImageHash;
 
-      setProof(mockProof);
+      // Call the API to generate ZK proof
+      const response = await generateProof({
+        original_image_hash: originalImageHash,
+        edited_image_hash: editedImageHash,
+        c2pa_data: c2paMetadata ? {
+          active_manifest: c2paMetadata.active_manifest,
+          claim_generator: c2paMetadata.claim_generator,
+          algorithm: c2paMetadata.algorithm,
+        } : undefined,
+        editing_records: editingRecords,
+      });
+
+      setProof(response);
       setCurrentStep(2);
       message.success('ZK Proof generated successfully');
     } catch (err) {

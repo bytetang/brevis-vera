@@ -104,8 +104,25 @@ async fn handle_extract(Json(req): Json<ProvenanceExtractRequest>) -> impl IntoR
         }
     };
 
+    // Detect format from magic bytes to determine file extension.
+    // c2pa::ManifestStore::from_file relies on the file extension to parse
+    // the correct media container, so we must use the right suffix.
+    let suffix = match crate::provenance::reader::detect_format(&image_bytes) {
+        Ok(MediaFormat::Jpeg) => ".jpg",
+        Ok(MediaFormat::Png) => ".png",
+        Err(_) => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "Unsupported image format (only JPEG and PNG are supported)",
+            )
+        }
+    };
+
     // Write to temp file (c2pa crate requires file path)
-    let mut temp_file: NamedTempFile = match NamedTempFile::new() {
+    let mut temp_file: NamedTempFile = match tempfile::Builder::new()
+        .suffix(suffix)
+        .tempfile()
+    {
         Ok(f) => f,
         Err(e) => {
             return error_response(

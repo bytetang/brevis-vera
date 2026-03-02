@@ -20,20 +20,6 @@ const apiClient = axios.create({
   },
 });
 
-// Convert File to Base64
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Remove data URL prefix
-      resolve(result.split(',')[1]);
-    };
-    reader.onerror = reject;
-  });
-};
-
 // Backend response types (from Rust API)
 interface BackendProvenanceResponse {
   has_c2pa: boolean;
@@ -86,10 +72,9 @@ interface BackendZkProveResponse {
 }
 
 // Extract C2PA provenance from uploaded image
-export const extractProvenance = async (file: File): Promise<ProvenanceResponse> => {
-  const base64 = await fileToBase64(file);
+export const extractProvenance = async (imageBase64: string): Promise<ProvenanceResponse> => {
   const response = await apiClient.post<BackendProvenanceResponse>('/provenance/extract', {
-    image: base64,
+    image: imageBase64,
   });
 
   const data = response.data;

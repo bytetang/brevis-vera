@@ -17,8 +17,11 @@ use axum::{
     routing::get,
     Router,
 };
+use axum::body::Body;
+use http::{Request, Response};
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::trace::TraceLayer;
 
 mod api {
     pub mod provenance_api {
@@ -42,6 +45,9 @@ fn app_router() -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    // Logging layer
+    let trace = TraceLayer::new_for_http();
+
     Router::new()
         .route("/", get(health))
         .route("/health", get(health))
@@ -49,10 +55,17 @@ fn app_router() -> Router {
         .merge(brevis_vera::provenance::api::provenance_router())
         .merge(brevis_vera::zk::api::zk_router())
         .layer(cors)
+        .layer(trace)
 }
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing subscriber for logging
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .compact()
+        .init();
+
     // Build the application
     let app = app_router();
 
@@ -60,14 +73,15 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
-    println!("Brevis Vera API server starting on http://localhost:8080");
-    println!("Available endpoints:");
-    println!("  - POST /api/v1/edit/crop");
-    println!("  - POST /api/v1/edit/resize");
-    println!("  - POST /api/v1/edit/rotate");
-    println!("  - POST /api/v1/provenance/extract");
-    println!("  - POST /api/v1/zk/prove");
-    println!("  - GET  /health");
+    tracing::info!("Brevis Vera API server starting on http://localhost:8080");
+    tracing::info!("Available endpoints:");
+    tracing::info!("  - POST /api/v1/edit/crop");
+    tracing::info!("  - POST /api/v1/edit/resize");
+    tracing::info!("  - POST /api/v1/edit/rotate");
+    tracing::info!("  - POST /api/v1/provenance/extract");
+    tracing::info!("  - POST /api/v1/zk/prove");
+    tracing::info!("  - GET  /health");
+    tracing::info!("Server ready to accept connections");
 
     // Start the server
     axum::serve(listener, app).await.unwrap();
