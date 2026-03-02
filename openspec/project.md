@@ -85,8 +85,8 @@ Brevis Vera bridges the gap between **hardware-level provenance** (C2PA-style si
 │           │                         │  ┌────────────────────┐  │             │
 │           │                         │  │ Capture &          │  │             │
 │           │                         │  │ Provenance Layer   │  │             │
-│           │                         │  │ - C2PA/ECDSA Verify│  │             │
 │           │                         │  │ - Extract metadata │  │             │
+│           │                         │  │ - Pass to ZKVM     │  │             │
 │           │                         │  └────────────────────┘  │             │
 │           │                         │            │              │             │
 │           │  2. Edit Request        │            ▼              │             │
@@ -98,9 +98,10 @@ Brevis Vera bridges the gap between **hardware-level provenance** (C2PA-style si
 │           │                         │            │              │             │
 │           │                         │            ▼              │             │
 │           │                         │  ┌────────────────────┐  │             │
-│           │                         │  │ ZK Proof Layer     │  │             │
-│           │                         │  │ - Pico ZKVM        │  │             │
-│           │                         │  │ - Generate proof   │  │             │
+│           │                         │  │ ZK Proof Layer    │  │             │
+│           │                         │  │ - Pico ZKVM       │  │             │
+│           │                         │  │ - C2PA Verify (ZK)│  │             │
+│           │                         │  │ - Generate proof  │  │             │
 │           │                         │  └────────────────────┘  │             │
 │           │                         │            │              │             │
 │           │  3. Edited + Proof     │            │              │             │
@@ -159,14 +160,15 @@ Brevis Vera bridges the gap between **hardware-level provenance** (C2PA-style si
 ```
 Functionality:
 ├── Accept media files with provenance metadata
-├── Parse C2PA/ECDSA signature data
-├── Verify signature validity (ECDSA P-256)
-└── Extract original image and metadata
+├── Extract C2PA metadata (signature + certificate chain + claims)
+├── Extract original image for ZK proof generation
+└── Pass data to ZK Proof Layer for verification
 
 Implementation:
-├── Rust: Use ring or k256 library for ECDSA signature verification
-├── Parse JSON/binary metadata
-└── Output: Verification result + original image
+├── Rust: Parse C2PA metadata from media files
+├── Extract signature, certificate chain, and claims (C2PA uses ECDSA P-256)
+├── Output: C2PA data + original image hash
+└── Note: C2PA verification happens inside ZKVM
 ```
 
 ### 5.2 Editing Layer
@@ -188,6 +190,10 @@ Implementation:
 
 ```
 Functionality:
+├── **C2PA Verification inside ZKVM**: Verify C2PA provenance
+│   ├── Verify certificate chain validity
+│   ├── Verify ECDSA P-256 signature over original image hash
+│   └── Output: C2PA provenance verified (privacy-preserving)
 ├── Generate consistency proof between before and after editing
 ├── Prove specific types of edits were applied (e.g., crop)
 ├── Hide specific details of edits
@@ -195,9 +201,9 @@ Functionality:
 
 Implementation:
 ├── Rust: Integrate Pico ZKVM
-├── Write ZK circuit/program
-├── Input: Original image hash + edited image + edit type
-└── Output: ZK Proof
+├── Write ZK circuit for C2PA verification (uses ECDSA P-256)
+├── Input: Original image + C2PA data + edited image + edit type
+└── Output: ZK Proof (includes C2PA verification + editing proof)
 ```
 
 ### 5.4 Verification Layer
