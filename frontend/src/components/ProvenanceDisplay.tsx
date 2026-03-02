@@ -1,5 +1,6 @@
-import { Card, Tag, Descriptions, Alert } from 'antd';
-import { SafetyCertificateOutlined, WarningOutlined } from '@ant-design/icons';
+import { Card, Tag, Descriptions, Alert, Tooltip } from 'antd';
+import { SafetyCertificateOutlined, WarningOutlined, CopyOutlined } from '@ant-design/icons';
+import { useState } from 'react';
 import type { C2PAMetadata } from '../types';
 
 interface ProvenanceDisplayProps {
@@ -9,6 +10,14 @@ interface ProvenanceDisplayProps {
 }
 
 const ProvenanceDisplay: React.FC<ProvenanceDisplayProps> = ({ metadata, hasC2PA, imageHash }) => {
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   if (!hasC2PA) {
     return (
       <Card title="C2PA Provenance" extra={<WarningOutlined style={{ color: '#faad14' }} />}>
@@ -57,7 +66,22 @@ const ProvenanceDisplay: React.FC<ProvenanceDisplayProps> = ({ metadata, hasC2PA
           </Descriptions.Item>
         )}
         <Descriptions.Item label="Image Hash">
-          <code style={{ fontSize: 12 }}>{imageHash?.substring(0, 16)}...</code>
+          <Tooltip title={imageHash || ''}>
+            <code
+              style={{
+                fontSize: 12,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+              onClick={() => imageHash && copyToClipboard(imageHash)}
+            >
+              {imageHash}
+              <CopyOutlined style={{ fontSize: 10, color: '#888' }} />
+              {copied && <Tag color="green" style={{ marginLeft: 4, fontSize: 10 }}>Copied!</Tag>}
+            </code>
+          </Tooltip>
         </Descriptions.Item>
       </Descriptions>
     </Card>
