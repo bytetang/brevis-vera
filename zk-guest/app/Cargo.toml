@@ -1,0 +1,19 @@
+[package]
+name = "brevis-vera-zk-app"
+version = "0.1.0"
+edition = "2021"
+description = "Pico ZKVM guest program for Brevis Vera proof generation"
+
+[dependencies]
+pico-sdk = { git = "https://github.com/brevis-network/pico", default-features = false, features = ["bb"] }
+brevis-vera-zk-lib = { path = "../lib" }
+serde = { version = "1.0", features = ["derive"] }
+alloy-sol-types = "0.8.0"
+
+# SHA-256 with Pico precompile acceleration
+sha2 = "0.10"
+
+[patch.crates-io]
+# Pico-optimized patches: these replace standard crypto with ZKVM syscalls
+# SHA-256 → uses SHA_EXTEND / SHA_COMPRESS precompiles
+sha2 = { git = "https://github.com/brevis-network/hashes", branch = "pico-patch-v1.0.1-sha2-v0.10.8" }

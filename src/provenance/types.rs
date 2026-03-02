@@ -9,8 +9,9 @@
 //! - C2PA verification data (signature info, claims/assertions)
 //! - Image hash (SHA-256)
 //!
-//! This data is passed to the ZK Proof Layer for privacy-preserving
-//! C2PA signature verification using ECDSA P-256 inside the ZKVM circuit.
+//! This data is passed to the ZK Proof Layer for structural verification
+//! inside the ZKVM circuit.  Cryptographic signature verification is
+//! performed on the host by the `c2pa` library.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -104,7 +105,7 @@ pub struct C2paMetadata {
 /// C2PA signature information.
 ///
 /// Contains details about the digital signature applied to the C2PA manifest.
-/// C2PA standard uses ECDSA P-256 for signatures (algorithm "Es256").
+/// Supports multiple C2PA signing algorithms (Es256, PS256, Ed25519, etc.).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignatureInfo {
     /// Certificate issuer distinguished name
@@ -113,7 +114,7 @@ pub struct SignatureInfo {
     pub time: Option<String>,
     /// Certificate serial number
     pub cert_serial_number: Option<String>,
-    /// Signing algorithm (e.g., "Es256" for ECDSA P-256)
+    /// Signing algorithm (e.g., "Es256", "PS256", "Ed25519")
     pub alg: Option<String>,
 }
 

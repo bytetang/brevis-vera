@@ -183,4 +183,62 @@ mod tests {
         let result = parse_c2pa(&path).unwrap();
         assert!(result.is_none(), "Plain JPEG should have no C2PA metadata");
     }
+
+    #[test]
+    fn test_parse_signed_image() {
+        // Sign the test image using c2pa crate (same version as our parser)
+        // to avoid CBOR format version mismatches with c2patool
+        let src_path = test_image_path();
+        if !src_path.exists() {
+            eprintln!("Skipping: test image not found");
+            return;
+        }
+
+        let cert_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("certs");
+        let cert_path = cert_dir.join("ec_cert.pem");
+        let key_path = cert_dir.join("ec_key.pem");
+        if !cert_path.exists() || !key_path.exists() {
+            eprintln!("Skipping: test certs not found in certs/");
+            return;
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest_path = dir.path().join("signed.JPG");
+
+        // Use c2pa crate Builder to sign
+        let manifest_json = r#"{
+            "claim_generator": "BrevisVera/TestSigner/1.0",
+            "assertions": [{
+                "label": "c2pa.actions",
+                "data": {"actions": [{"action": "c2pa.created"}]}
+            }]
+        }"#;
+        let signer = c2pa::create_signer::from_files(
+            &cert_path,
+            &key_path,
+            c2pa::SigningAlg::Es256,
+            None,
+        )
+        .expect("create signer from test certs");
+
+        let mut builder = c2pa::Builder::from_json(manifest_json).unwrap();
+        builder
+            .sign_file(&*signer, &src_path, &dest_path)
+            .expect("sign file");
+
+        // Now parse the signed image with our parser
+        let metadata = parse_c2pa(&dest_path)
+            .unwrap()
+            .expect("signed image should have C2PA");
+        let sig_info = metadata
+            .signature_info
+            .as_ref()
+            .expect("should have signature_info");
+
+        // Algorithm should be es256 (ECDSA P-256)
+        assert_eq!(sig_info.alg.as_deref(), Some("es256"));
+
+        // Should have a claim generator
+        assert!(!metadata.claim_generator.is_empty());
+    }
 }

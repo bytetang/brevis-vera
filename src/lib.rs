@@ -15,6 +15,7 @@
 //!
 //! - [`provenance`] — Capture & Provenance Layer: C2PA metadata extraction
 //! - [`editor`] — Editing Layer: image transformations and REST API
+//! - [`zk`] — ZK Proof Layer: zero-knowledge proof generation and verification
 //!
 //! # Example
 //!
@@ -35,3 +36,4 @@
 
 pub mod editor;
 pub mod provenance;
+pub mod zk;
