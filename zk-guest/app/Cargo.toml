@@ -13,7 +13,17 @@ alloy-sol-types = "0.8.0"
 # SHA-256 with Pico precompile acceleration
 sha2 = "0.10"
 
+# ECDSA P-256 verification with Pico precompile acceleration
+ecdsa = { version = "0.16", features = ["verifying"] }
+p256 = "0.13"
+signature = "2"
+hex = "0.4"
+
 [patch.crates-io]
 # Pico-optimized patches: these replace standard crypto with ZKVM syscalls
 # SHA-256 → uses SHA_EXTEND / SHA_COMPRESS precompiles
 sha2 = { git = "https://github.com/brevis-network/hashes", branch = "pico-patch-v1.0.1-sha2-v0.10.8" }
+# ECDSA P-256 → uses secp256r1 precompiles
+ecdsa = { git = "https://github.com/brevis-network/signatures", tag = "pico-patch-v1.0.1.16.9-ecdsa-0" }
+p256 = { git = "https://github.com/brevis-network/signatures", tag = "pico-patch-v1.0.1-ecdsa-0.16.9" }
+signature = { git = "https://github.com/brevis-network/signatures", tag = "pico-patch-v1.0.1-ecdsa-0.16.9" }

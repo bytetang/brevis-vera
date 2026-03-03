@@ -1,0 +1,442 @@
+/* Brevis Vera - Morandi Tech Design System */
+
+/* ========================================
+   CSS Variables - Design Tokens
+======================================== */
+:root {
+  /* Colors - Morandi Tech */
+  --color-bg-primary: #f4f6f8;
+  --color-bg-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
+
+  /* Brand Colors */
+  --color-primary: #4f46e5;
+  --color-primary-hover: #4338ca;
+  --color-primary-light: #eef2ff;
+
+  /* Functional Colors */
+  --color-success: #10b981;
+  --color-success-light: #d1fae5;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fef3c7;
+  --color-error: #ef4444;
+  --color-error-light: #fee2e2;
+
+  /* Text Colors */
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-tertiary: #9ca3af;
+  --color-text-disabled: #d1d5db;
+
+  /* Shadows */
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-hover: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-focus: 0 0 0 3px rgba(79, 70, 229, 0.1);
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+/* ========================================
+   Global Styles
+======================================== */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+p {
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  max-width: 65ch;
+}
+
+/* ========================================
+   Ant Design Component Overrides
+======================================== */
+
+/* Button */
+.ant-btn {
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+}
+
+.ant-btn:hover:not(:disabled) {
+  transform: scale(1.02);
+}
+
+.ant-btn-primary {
+  background-color: var(--color-primary);
+}
+
+.ant-btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+.ant-btn-default {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+}
+
+.ant-btn-default:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Card */
+.ant-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-soft);
+  transition: box-shadow 150ms ease;
+}
+
+.ant-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.ant-card-head {
+  border-bottom: none;
+  padding: 16px 20px;
+}
+
+.ant-card-head-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Input */
+.ant-input,
+.ant-input-number,
+.ant-select-selector {
+  border-radius: var(--radius-md) !important;
+  border-color: var(--color-border) !important;
+  transition: all 150ms ease !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-number:focus,
+.ant-input-number-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--shadow-focus) !important;
+}
+
+/* Table */
+.ant-table {
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+}
+
+.ant-table-thead > tr > th {
+  background: #f9fafb !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--color-border-light) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #f9fafb !important;
+  transition: background 120ms ease;
+}
+
+/* Tag */
+.ant-tag {
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  font-size: 12px;
+  border: none;
+}
+
+.ant-tag-blue {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.ant-tag-green {
+  background-color: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.ant-tag-red {
+  background-color: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.ant-tag-orange {
+  background-color: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+/* Steps */
+.ant-steps-item-title {
+  font-weight: 500 !important;
+}
+
+/* Modal */
+.ant-modal-content {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ant-modal-header {
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.ant-modal-footer {
+  border-top: 1px solid var(--color-border-light);
+}
+
+/* Descriptions */
+.ant-descriptions-bordered .ant-descriptions-item-label,
+.ant-descriptions-bordered .ant-descriptions-item-content {
+  background: var(--color-bg-surface);
+}
+
+/* Alert */
+.ant-alert {
+  border-radius: var(--radius-md);
+}
+
+/* Upload */
+.ant-upload-drag {
+  border-radius: var(--radius-lg) !important;
+  border: 2px dashed var(--color-border) !important;
+  background: var(--color-bg-surface) !important;
+  transition: all 150ms ease !important;
+}
+
+.ant-upload-drag:hover {
+  border-color: var(--color-primary) !important;
+}
+
+.ant-upload-drag-hover {
+  border-color: var(--color-primary) !important;
+  background: var(--color-primary-light) !important;
+}
+
+/* Divider */
+.ant-divider-inner-text {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+/* Label styling */
+label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+/* ========================================
+   Custom Component Styles
+======================================== */
+
+/* Header */
+.app-header {
+  background: var(--color-bg-surface) !important;
+  border-bottom: 1px solid var(--color-border-light);
+  height: 64px;
+  display: flex;
+  align-items: center;
+}
+
+.app-header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* Page Title */
+.page-title {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin-bottom: 24px;
+}
+
+/* Card Section Title */
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 12px;
+}
+
+/* Label Tag */
+.label-tag {
+  font-size: 12px;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: #6b7280;
+  letter-spacing: 0.05em;
+}
+
+/* Hash Display */
+.hash-display {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: #f9fafb;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.hash-display:hover {
+  background: #f3f4f6;
+}
+
+/* Step Container */
+.step-container {
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.status-badge.success {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.status-badge.error {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.status-badge.warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+/* Tool Card */
+.tool-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  transition: all 150ms ease;
+}
+
+.tool-card:hover {
+  box-shadow: var(--shadow-hover);
+  border-color: var(--color-primary);
+}
+
+/* Image Preview */
+.image-preview {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+}
+
+/* Action Bar */
+.action-bar {
+  display: flex;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border-light);
+  margin-top: 16px;
+}
+
+/* Info Row */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+/* Animation Classes */
+.fade-in {
+  animation: fadeIn 200ms ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-up {
+  animation: slideUp 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

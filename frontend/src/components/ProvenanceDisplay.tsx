@@ -1,7 +1,13 @@
-import { Card, Tag, Descriptions, Alert, Tooltip } from 'antd';
-import { SafetyCertificateOutlined, WarningOutlined, CopyOutlined } from '@ant-design/icons';
+import { Card, Tag, Descriptions, Alert, Tooltip, Typography, Space } from 'antd';
+import {
+  WarningOutlined,
+  CopyOutlined,
+  CheckCircleOutlined,
+} from '@ant-design/icons';
 import { useState } from 'react';
 import type { C2PAMetadata } from '../types';
+
+const { Text } = Typography;
 
 interface ProvenanceDisplayProps {
   metadata: C2PAMetadata | null;
@@ -20,12 +26,25 @@ const ProvenanceDisplay: React.FC<ProvenanceDisplayProps> = ({ metadata, hasC2PA
 
   if (!hasC2PA) {
     return (
-      <Card title="C2PA Provenance" extra={<WarningOutlined style={{ color: '#faad14' }} />}>
+      <Card
+        title={
+          <Space>
+            <WarningOutlined style={{ color: '#f59e0b' }} />
+            <span>C2PA Provenance</span>
+          </Space>
+        }
+        style={{
+          marginTop: 24,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)',
+          borderColor: '#f59e0b',
+        }}
+      >
         <Alert
           message="No C2PA Metadata Found"
           description="This image does not contain C2PA provenance metadata. The image cannot be verified for authenticity."
           type="warning"
           showIcon
+          style={{ borderRadius: 6 }}
         />
       </Card>
     );
@@ -34,56 +53,104 @@ const ProvenanceDisplay: React.FC<ProvenanceDisplayProps> = ({ metadata, hasC2PA
   return (
     <Card
       title={
-        <span>
-          <SafetyCertificateOutlined style={{ color: '#52c41a', marginRight: 8 }} />
-          C2PA Provenance
-        </span>
+        <Space>
+          <CheckCircleOutlined style={{ color: '#10b981' }} />
+          <span>C2PA Provenance</span>
+        </Space>
       }
+      style={{
+        marginTop: 24,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)',
+      }}
     >
-      <Descriptions column={1} bordered size="small">
-        <Descriptions.Item label="Status">
-          <Tag color="green">Verified</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="Algorithm">
-          <Tag color="blue">{metadata?.algorithm || 'Unknown'}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="Claim Generator">
-          {metadata?.claim_generator || 'Unknown'}
-        </Descriptions.Item>
-        {metadata?.device_info && (
-          <>
-            <Descriptions.Item label="Device Model">
-              {metadata.device_info.model || 'Unknown'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Manufacturer">
-              {metadata.device_info.manufacturer || 'Unknown'}
-            </Descriptions.Item>
-          </>
-        )}
-        {metadata?.timestamp && (
-          <Descriptions.Item label="Timestamp">
-            {metadata.timestamp}
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        {/* Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="label-tag">Status</span>
+          <Tag color="success" style={{
+            background: '#d1fae5',
+            color: '#10b981',
+            border: 'none',
+            borderRadius: 4,
+            fontWeight: 500,
+          }}>
+            Verified
+          </Tag>
+        </div>
+
+        <Descriptions column={1} bordered size="small" style={{ marginTop: 16 }}>
+          <Descriptions.Item label={<span className="label-tag">Algorithm</span>}>
+            <Tag style={{
+              background: '#eef2ff',
+              color: '#4f46e5',
+              border: 'none',
+              borderRadius: 4,
+            }}>
+              {metadata?.algorithm || 'Unknown'}
+            </Tag>
           </Descriptions.Item>
-        )}
-        <Descriptions.Item label="Image Hash">
-          <Tooltip title={imageHash || ''}>
-            <code
-              style={{
-                fontSize: 12,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-              onClick={() => imageHash && copyToClipboard(imageHash)}
-            >
-              {imageHash}
-              <CopyOutlined style={{ fontSize: 10, color: '#888' }} />
-              {copied && <Tag color="green" style={{ marginLeft: 4, fontSize: 10 }}>Copied!</Tag>}
-            </code>
-          </Tooltip>
-        </Descriptions.Item>
-      </Descriptions>
+          <Descriptions.Item label={<span className="label-tag">Claim Generator</span>}>
+            <Text>{metadata?.claim_generator || 'Unknown'}</Text>
+          </Descriptions.Item>
+          {metadata?.device_info && (
+            <>
+              <Descriptions.Item label={<span className="label-tag">Device Model</span>}>
+                <Text>{metadata.device_info.model || 'Unknown'}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label={<span className="label-tag">Manufacturer</span>}>
+                <Text>{metadata.device_info.manufacturer || 'Unknown'}</Text>
+              </Descriptions.Item>
+            </>
+          )}
+          {metadata?.timestamp && (
+            <Descriptions.Item label={<span className="label-tag">Timestamp</span>}>
+              <Text>{metadata.timestamp}</Text>
+            </Descriptions.Item>
+          )}
+          <Descriptions.Item label={<span className="label-tag">Image Hash</span>}>
+            <Tooltip title={imageHash || ''}>
+              <code
+                className="hash-display"
+                onClick={() => imageHash && copyToClipboard(imageHash)}
+                style={{
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 8px',
+                  borderRadius: 4,
+                  background: '#f9fafb',
+                  color: '#4b5563',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {imageHash}
+                <CopyOutlined style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }} />
+              </code>
+            </Tooltip>
+            {copied && (
+              <Tag
+                color="success"
+                style={{
+                  background: '#d1fae5',
+                  color: '#10b981',
+                  border: 'none',
+                  borderRadius: 4,
+                  marginLeft: 8,
+                  fontSize: 11,
+                }}
+              >
+                Copied!
+              </Tag>
+            )}
+          </Descriptions.Item>
+        </Descriptions>
+      </Space>
     </Card>
   );
 };

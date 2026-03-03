@@ -727,9 +727,13 @@ version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
  "brevis-vera-zk-lib",
+ "ecdsa",
+ "hex",
+ "p256",
  "pico-sdk",
  "serde",
  "sha2",
+ "signature",
 ]
 
 [[package]]
