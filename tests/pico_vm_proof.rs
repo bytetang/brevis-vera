@@ -596,11 +596,22 @@ fn test_pico_real_image_crop_reexecution() {
     // Load the real test image
     let image_path = std::path::Path::new("imgs/test_img_small.JPG");
     let original_bytes = std::fs::read(image_path).expect("Failed to read test image");
-    let original_png = image::load_from_memory(&original_bytes)
+    let original_img = image::load_from_memory(&original_bytes)
         .expect("Failed to decode image")
         .to_rgba8();
-    let (img_w, img_h) = original_png.dimensions();
-    println!("Loaded image: {}x{}", img_w, img_h);
+    let (orig_w, orig_h) = original_img.dimensions();
+    println!("Loaded image: {}x{}", orig_w, orig_h);
+
+    // Resize to a smaller size for faster ZKVM proving
+    let target_size = 32;
+    let resized = image::imageops::resize(
+        &original_img,
+        target_size,
+        target_size,
+        image::imageops::FilterType::Nearest,
+    );
+    let (img_w, img_h) = (target_size, target_size);
+    println!("Resized to: {}x{}", img_w, img_h);
 
     // Encode as PNG for the operations module
     let mut png_buf = Vec::new();
@@ -608,7 +619,7 @@ fn test_pico_real_image_crop_reexecution() {
         let encoder = image::codecs::png::PngEncoder::new(&mut png_buf);
         image::ImageEncoder::write_image(
             encoder,
-            original_png.as_raw(),
+            resized.as_raw(),
             img_w,
             img_h,
             image::ExtendedColorType::Rgba8,
@@ -619,9 +630,6 @@ fn test_pico_real_image_crop_reexecution() {
     // Extract raw RGBA pixels
     let (raw_pixels, _, _) = operations::extract_raw_rgba(&png_buf).unwrap();
 
-    // Calculate original hash (SHA-256 of PNG)
-    let original_hash = sha256_hex(&png_buf);
-
     // Define crop parameters (using a valid crop region)
     let crop_params = CropParams {
         x: 0,
@@ -630,13 +638,13 @@ fn test_pico_real_image_crop_reexecution() {
         height: img_h / 2,
     };
 
-    // Run the crop operation
+    // Run the crop operation - its record already hashes raw RGBA pixels
     let crop_result = operations::crop(&png_buf, &crop_params).unwrap();
     let record = &crop_result.record;
 
-    // Build the proof input
+    // Build the proof input - use the record's hashes (computed over raw pixels)
     let input = EditingProofInput {
-        original_image_hash: original_hash,
+        original_image_hash: record.original_image_hash.clone(),
         edited_image_hash: record.edited_image_hash.clone(),
         editing_records: vec![EditingRecordInput {
             operation: EditOperation::Crop,

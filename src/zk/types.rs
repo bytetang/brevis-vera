@@ -3,6 +3,7 @@
 //! Defines proof inputs, outputs, public inputs, and error types
 //! used throughout the ZK proof pipeline.
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -59,7 +60,12 @@ pub struct EditingRecordInput {
     pub output_hash: String,
     /// Raw RGBA pixel data for the input image (optional).
     /// When provided for crop operations, enables re-execution verification.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    /// Accepts base64-encoded string and decodes to Vec<u8>.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_base64_option"
+    )]
     pub raw_pixels: Option<Vec<u8>>,
     /// Width of the raw pixel image (required when `raw_pixels` is set)
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -67,6 +73,23 @@ pub struct EditingRecordInput {
     /// Height of the raw pixel image (required when `raw_pixels` is set)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub pixel_height: Option<u32>,
+}
+
+/// Deserialize an optional base64 string to Option<Vec<u8>>
+fn deserialize_base64_option<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    match opt {
+        Some(s) => {
+            let decoded = BASE64.decode(&s).map_err(|e| {
+                serde::de::Error::custom(format!("invalid base64: {}", e))
+            })?;
+            Ok(Some(decoded))
+        }
+        None => Ok(None),
+    }
 }
 
 /// Input for combined proof generation (C2PA + editing).

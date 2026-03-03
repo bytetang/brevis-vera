@@ -41,12 +41,17 @@ export interface EditingRecord {
   parameters: CropParams | ResizeParams | RotateParams;
   input_hash: string;
   output_hash: string;
+  // Raw pixels for ZK proof (private input)
+  raw_pixels?: string;
+  pixel_width?: number;
+  pixel_height?: number;
 }
 
 export interface EditResponse {
   edited_image_base64: string;
   editing_record: EditingRecord;
   edited_image_hash: string;
+  raw_pixels?: string;
 }
 
 export interface ZKProofRequest {

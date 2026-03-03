@@ -52,6 +52,7 @@ interface BackendEditResponse {
     edited_image_hash: string;
     timestamp: string;
   };
+  raw_pixels?: string;
 }
 
 interface BackendZkProveResponse {
@@ -110,11 +111,15 @@ export const cropImage = async (
   return {
     edited_image_base64: data.image,
     edited_image_hash: data.record.edited_image_hash,
+    raw_pixels: data.raw_pixels,
     editing_record: {
       operation: data.record.operation as EditingRecord['operation'],
       parameters: data.record.parameters as unknown as EditingRecord['parameters'],
       input_hash: data.record.original_image_hash,
       output_hash: data.record.edited_image_hash,
+      raw_pixels: data.raw_pixels,
+      pixel_width: data.width,
+      pixel_height: data.height,
     },
   };
 };
@@ -136,11 +141,15 @@ export const resizeImage = async (
   return {
     edited_image_base64: data.image,
     edited_image_hash: data.record.edited_image_hash,
+    raw_pixels: data.raw_pixels,
     editing_record: {
       operation: data.record.operation as EditingRecord['operation'],
       parameters: data.record.parameters as unknown as EditingRecord['parameters'],
       input_hash: data.record.original_image_hash,
       output_hash: data.record.edited_image_hash,
+      raw_pixels: data.raw_pixels,
+      pixel_width: data.width,
+      pixel_height: data.height,
     },
   };
 };
@@ -161,11 +170,15 @@ export const rotateImage = async (
   return {
     edited_image_base64: data.image,
     edited_image_hash: data.record.edited_image_hash,
+    raw_pixels: data.raw_pixels,
     editing_record: {
       operation: data.record.operation as EditingRecord['operation'],
       parameters: data.record.parameters as unknown as EditingRecord['parameters'],
       input_hash: data.record.original_image_hash,
       output_hash: data.record.edited_image_hash,
+      raw_pixels: data.raw_pixels,
+      pixel_width: data.width,
+      pixel_height: data.height,
     },
   };
 };
@@ -189,6 +202,10 @@ export const generateProof = async (request: ZKProofRequest): Promise<ZKProofRes
       parameters: record.parameters,
       input_hash: record.input_hash,
       output_hash: record.output_hash,
+      // Include raw pixels as private input for ZK proof
+      raw_pixels: record.raw_pixels,
+      pixel_width: record.pixel_width,
+      pixel_height: record.pixel_height,
     })),
   };
 

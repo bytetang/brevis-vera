@@ -95,12 +95,13 @@ pub struct RotateRequest {
 ///   "image": "<base64-encoded edited image>",
 ///   "width": 200,
 ///   "height": 150,
-///   "record": { ... }
+///   "record": { ... },
+///   "raw_pixels": "<base64-encoded raw RGBA pixels>"
 /// }
 /// ```
 #[derive(Debug, Serialize)]
 pub struct EditResponse {
-    /// Base64-encoded edited image (PNG)
+    /// Base64-encoded edited image (raw RGBA pixels)
     pub image: String,
     /// Width of the edited image
     pub width: u32,
@@ -108,6 +109,8 @@ pub struct EditResponse {
     pub height: u32,
     /// Editing record for ZK proof generation
     pub record: EditingRecord,
+    /// Raw RGBA pixels (base64-encoded) - used as private input for ZK proof
+    pub raw_pixels: Option<String>,
 }
 
 /// Error response body.
@@ -224,6 +227,8 @@ fn success_response(
         width: result.width,
         height: result.height,
         record: result.record,
+        // Include raw pixels for ZK proof generation
+        raw_pixels: Some(BASE64.encode(&result.image_bytes)),
     };
     (StatusCode::OK, Json(serde_json::to_value(resp).unwrap()))
 }
@@ -278,11 +283,13 @@ mod tests {
                 edited_image_hash: "def456".to_string(),
                 timestamp: "2026-01-01T00:00:00Z".to_string(),
             },
+            raw_pixels: Some("dGVzdA==".to_string()),
         };
 
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("\"image\""));
         assert!(json.contains("\"record\""));
         assert!(json.contains("\"crop\""));
+        assert!(json.contains("\"raw_pixels\""));
     }
 }
