@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Upload, message } from 'antd';
-import { UploadOutlined } from '@ant-design/icons';
+import { Upload, message, Typography, Space } from 'antd';
+import { InboxOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
+
+const { Dragger } = Upload;
+const { Text } = Typography;
 
 interface ImageUploaderProps {
   onImageUploaded: (base64: string, filename: string) => void;
@@ -59,14 +62,33 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUploaded, disabled
   };
 
   return (
-    <Upload.Dragger {...uploadProps}>
-      <p className="ant-upload-drag-icon">
-        <UploadOutlined />
-      </p>
-      <p className="ant-upload-text">Click or drag image to upload</p>
-      <p className="ant-upload-hint">Support for JPEG or PNG images (max 10MB)</p>
-      {loading && <p>Processing...</p>}
-    </Upload.Dragger>
+    <Dragger {...uploadProps} style={{ padding: '32px 0' }}>
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <div style={{
+          width: 64,
+          height: 64,
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#eef2ff',
+          borderRadius: '50%',
+        }}>
+          <InboxOutlined style={{ fontSize: 28, color: '#4f46e5' }} />
+        </div>
+        <div>
+          <Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8 }}>
+            Click or drag image to upload
+          </Text>
+          <Text type="secondary">
+            Support for JPEG or PNG images (max 10MB)
+          </Text>
+        </div>
+        {loading && (
+          <Text type="secondary">Processing...</Text>
+        )}
+      </Space>
+    </Dragger>
   );
 };
 
