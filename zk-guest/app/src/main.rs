@@ -177,14 +177,54 @@ fn verify_ecdsa_p256(signature: &EcdsaSignature, public_key: &str, message_hash:
         return false;
     }
 
-    // TODO: In production, replace with actual ECDSA P-256 verification:
-    // - Use Pico SDK's secp256r1 precompiles
-    // - Or use brevis-network/signatures circuit
-    //
-    // For now, we return true if format validation passes.
-    // This is a placeholder - real implementation needed for security.
+    // Convert hex strings to bytes
+    let public_key_bytes = match hex::decode(public_key) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
 
-    true
+    let message_hash_bytes = match hex::decode(message_hash) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
+
+    let r_bytes = match hex::decode(&signature.r) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
+
+    let s_bytes = match hex::decode(&signature.s) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
+
+    // Import the ECDSA verification types
+    use ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey};
+    use p256::NistP256;
+
+    // Parse the public key from SEC1 uncompressed format (0x04 || X || Y)
+    let verifying_key = match VerifyingKey::<NistP256>::from_sec1_bytes(&public_key_bytes) {
+        Ok(vk) => vk,
+        Err(_) => return false,
+    };
+
+    // Construct signature from raw R || S bytes (64 bytes total)
+    // P-256 signatures are 32 bytes for R + 32 bytes for S = 64 bytes
+    let mut sig_bytes = Vec::with_capacity(64);
+    sig_bytes.extend_from_slice(&r_bytes);
+    sig_bytes.extend_from_slice(&s_bytes);
+
+    let signature = match Signature::<NistP256>::from_slice(&sig_bytes) {
+        Ok(sig) => sig,
+        Err(_) => return false,
+    };
+
+    // Verify the signature against the message hash
+    // The message_hash is already SHA-256 hashed, so we use verify_prehash
+    match verifying_key.verify_prehash(&message_hash_bytes, &signature) {
+        Ok(()) => true,
+        Err(_) => false,
+    }
 }
 
 // ---------------------------------------------------------------------------
