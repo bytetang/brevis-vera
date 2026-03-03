@@ -757,9 +757,9 @@ impl PicoProver {
                 .collect(),
         };
 
-        // For AOT mode, we don't have a full proof - just return empty bytes
-        // In production, you'd still need to run the proof generation
-        let proof_bytes = vec![];
+        // For AOT mode, return the public values as proof bytes (placeholder)
+        // In production, you'd still need to run the full proving pipeline
+        let proof_bytes = pv_bytes;
 
         let metadata = ProofMetadata {
             prover_type: "pico-aot".to_string(),

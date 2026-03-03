@@ -126,6 +126,7 @@ pub struct MetadataResponse {
     pub generation_time_ms: u64,
     pub timestamp: String,
     pub proof_version: String,
+    pub proof_size: usize,
 }
 
 /// Error response body.
@@ -242,6 +243,7 @@ async fn handle_prove(Json(req): Json<ZkProveRequest>) -> impl IntoResponse {
                     generation_time_ms: proof.metadata.generation_time_ms,
                     timestamp: proof.metadata.timestamp,
                     proof_version: proof.metadata.proof_version,
+                    proof_size: proof.proof_bytes.len(),
                 },
             };
 
@@ -400,6 +402,7 @@ mod tests {
                 generation_time_ms: 100,
                 timestamp: "2026-01-01T00:00:00Z".to_string(),
                 proof_version: "0.1.0".to_string(),
+                proof_size: 8,
             },
         };
 
