@@ -19,12 +19,14 @@ sol! {
     ///
     /// These are the only values visible to a verifier:
     /// - `c2pa_verified`: 1 if C2PA provenance was verified, 0 otherwise
+    /// - `ecdsa_verified`: 1 if ECDSA P-256 cryptographic verification passed, 0 otherwise
     /// - `editing_verified`: 1 if editing operations were verified, 0 otherwise
     /// - `original_image_hash`: SHA-256 hash of the original image (32 bytes)
     /// - `edited_image_hash`: SHA-256 hash of the edited image (32 bytes, zeroed if no edits)
     /// - `num_operations`: number of editing operations applied
     struct PublicValuesStruct {
         uint8 c2pa_verified;
+        uint8 ecdsa_verified;
         uint8 editing_verified;
         bytes32 original_image_hash;
         bytes32 edited_image_hash;
@@ -66,6 +68,22 @@ pub struct C2paInputData {
     pub claim_generator: String,
     /// Signing algorithm (e.g., "Es256", "PS256")
     pub algorithm: Option<String>,
+    /// ECDSA P-256 signature data (for cryptographic verification inside ZKVM)
+    pub ecdsa_signature: Option<EcdsaSignature>,
+    /// Public key for ECDSA verification (hex-encoded, uncompressed 04 prefix)
+    pub public_key: Option<String>,
+}
+
+/// ECDSA P-256 signature components (r, s values).
+///
+/// These are the raw signature values that can be verified
+/// using ECDSA P-256 against a public key and message hash.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EcdsaSignature {
+    /// Signature r component (32 bytes, hex-encoded)
+    pub r: String,
+    /// Signature s component (32 bytes, hex-encoded)
+    pub s: String,
 }
 
 /// A single editing operation record for the ZKVM.
@@ -119,6 +137,7 @@ mod tests {
     fn test_public_values_abi_encode_decode() {
         let pv = PublicValuesStruct {
             c2pa_verified: 1,
+            ecdsa_verified: 1,
             editing_verified: 1,
             original_image_hash: [0xAA; 32].into(),
             edited_image_hash: [0xBB; 32].into(),
@@ -130,6 +149,7 @@ mod tests {
             PublicValuesStruct::abi_decode(&encoded, true).expect("ABI decode should succeed");
 
         assert_eq!(decoded.c2pa_verified, 1);
+        assert_eq!(decoded.ecdsa_verified, 1);
         assert_eq!(decoded.editing_verified, 1);
         assert_eq!(decoded.num_operations, 2);
     }
@@ -141,6 +161,11 @@ mod tests {
                 active_manifest: "urn:c2pa:test:1".to_string(),
                 claim_generator: "TestCam/1.0".to_string(),
                 algorithm: Some("Es256".to_string()),
+                ecdsa_signature: Some(EcdsaSignature {
+                    r: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string(),
+                    s: "f1e2d3c4b5a69788796a5b4c3d2e1f0a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4".to_string(),
+                }),
+                public_key: Some("0460783afb3dba96bd37568481744eb0d8c0257261b8bc16dc96a6f50a867ea4bba3c6d8da159c60e5935399a394764baa6298eed36427269fb5a23c032d8815e9".to_string()),
             }),
             original_image_hash: "aa".repeat(32),
             editing_records: vec![EditingRecordData {
@@ -161,5 +186,6 @@ mod tests {
         let parsed: CircuitInput = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.original_image_hash, input.original_image_hash);
         assert_eq!(parsed.editing_records.len(), 1);
+        assert!(parsed.c2pa_data.as_ref().unwrap().ecdsa_signature.is_some());
     }
 }

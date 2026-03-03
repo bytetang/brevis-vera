@@ -20,7 +20,7 @@
 
 use std::path::Path;
 
-use super::types::{C2paMetadata, ClaimAssertion, Ingredient, ProvenanceError, SignatureInfo};
+use super::types::{C2paMetadata, ClaimAssertion, EcdsaSignature, Ingredient, ProvenanceError, SignatureInfo};
 
 /// Parse C2PA metadata from a media file.
 ///
@@ -92,12 +92,91 @@ pub fn parse_c2pa(path: &Path) -> Result<Option<C2paMetadata>, ProvenanceError> 
 fn extract_signature_info(manifest: &c2pa::Manifest) -> Option<SignatureInfo> {
     let sig = manifest.signature_info()?;
 
+    // Try to extract ECDSA signature and public key from the manifest
+    let (ecdsa_signature, public_key) = extract_ecdsa_data(manifest);
+
     Some(SignatureInfo {
         issuer: sig.issuer.clone(),
         time: sig.time.clone(),
         cert_serial_number: sig.cert_serial_number.clone(),
         alg: sig.alg.as_ref().map(|a| a.to_string()),
+        ecdsa_signature,
+        public_key,
     })
+}
+
+/// Extract ECDSA signature (r, s) and public key from the C2PA manifest.
+///
+/// Attempts to extract raw signature bytes from the manifest store for
+/// ZKVM-based cryptographic verification.
+fn extract_ecdsa_data(manifest: &c2pa::Manifest) -> (Option<EcdsaSignature>, Option<String>) {
+    // The c2pa crate doesn't directly expose raw signature bytes through its public API.
+    // The signature is embedded in JUMBF boxes in COSE format.
+    //
+    // We can try to extract the public key from the certificate chain.
+
+    // Get signature info which contains certificate chain
+    let sig_info = match manifest.signature_info() {
+        Some(info) => info,
+        None => return (None, None),
+    };
+
+    // Extract public key from the first certificate in the chain
+    let cert_chain = sig_info.cert_chain();
+    if cert_chain.is_empty() {
+        return (None, None);
+    }
+
+    // Parse the PEM certificate chain to extract public key
+    // The certificate chain is in PEM format
+    let public_key = extract_public_key_from_pem(cert_chain);
+
+    // Note: The actual signature r, s bytes are not available through the public API.
+    // For ZKVM verification, we would need to either:
+    // 1. Parse the JUMBF binary boxes directly
+    // 2. Use a configuration-based approach for known test keys
+    // 3. Implement COSE signature parsing
+
+    (None, public_key)
+}
+
+/// Extract the public key from a PEM-encoded certificate chain.
+///
+/// Returns the public key as an uncompressed ECDSA P-256 point (04 prefix + X + Y).
+fn extract_public_key_from_pem(pem_cert_chain: &str) -> Option<String> {
+    // Find the first certificate in the chain (between -----BEGIN and -----END)
+    let cert_start = pem_cert_chain.find("-----BEGIN CERTIFICATE-----")?;
+    let cert_end = cert_start + pem_cert_chain[cert_start..].find("-----END CERTIFICATE-----")? + 25;
+    let pem_cert = &pem_cert_chain[cert_start..cert_end];
+
+    // Parse the PEM using openssl
+    let cert = openssl::x509::X509::from_pem(pem_cert.as_bytes()).ok()?;
+
+    // Get the public key from the certificate
+    let pub_key = cert.public_key().ok()?;
+
+    // Try to get the EC key structure
+    let ec_key = pub_key.ec_key().ok()?;
+    let ec_group = ec_key.group();
+    let ec_point = ec_key.public_key();
+
+    // Create a context for point conversion
+    let mut ctx = openssl::bn::BigNumContext::new().ok()?;
+
+    // Get the point in uncompressed form (should start with 0x04)
+    let point_bytes = ec_point.to_bytes(
+        ec_group,
+        openssl::ec::PointConversionForm::UNCOMPRESSED,
+        &mut ctx
+    ).ok()?;
+
+    // Verify it starts with 0x04 (uncompressed form)
+    if point_bytes.first() != Some(&0x04) {
+        return None;
+    }
+
+    // Convert to hex string
+    Some(hex::encode(&point_bytes))
 }
 
 /// Extract assertions/claims from a C2PA [`c2pa::Manifest`].

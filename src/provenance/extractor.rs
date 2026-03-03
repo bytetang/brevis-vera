@@ -52,12 +52,20 @@ pub fn compute_image_hash(data: &[u8]) -> ImageHash {
 /// # Returns
 /// A [`ZkvmInput`] ready for ZKVM processing.
 pub fn build_zkvm_input(metadata: &C2paMetadata, image_hash: ImageHash) -> ZkvmInput {
+    // Extract ECDSA signature and public key from signature_info if available
+    let ecdsa_signature = metadata.signature_info.as_ref()
+        .and_then(|sig| sig.ecdsa_signature.clone());
+    let public_key = metadata.signature_info.as_ref()
+        .and_then(|sig| sig.public_key.clone());
+
     ZkvmInput {
         c2pa_data: C2paVerificationData {
             signature_info: metadata.signature_info.clone(),
             assertions: metadata.assertions.clone(),
             active_manifest: metadata.active_manifest.clone(),
             claim_generator: metadata.claim_generator.clone(),
+            ecdsa_signature,
+            public_key,
         },
         image_hash,
     }
@@ -123,6 +131,8 @@ mod tests {
                 time: Some("2024-06-15T08:30:00Z".to_string()),
                 cert_serial_number: Some("ABCDEF1234567890".to_string()),
                 alg: Some("Es256".to_string()),
+                ecdsa_signature: None,
+                public_key: None,
             }),
             assertions: vec![
                 ClaimAssertion {
@@ -188,6 +198,8 @@ mod tests {
                 time: None,
                 cert_serial_number: None,
                 alg: Some("Es256".to_string()),
+                ecdsa_signature: None,
+                public_key: None,
             }),
             assertions: vec![ClaimAssertion {
                 label: "c2pa.actions".to_string(),

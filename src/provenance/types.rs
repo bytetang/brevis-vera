@@ -116,6 +116,29 @@ pub struct SignatureInfo {
     pub cert_serial_number: Option<String>,
     /// Signing algorithm (e.g., "Es256", "PS256", "Ed25519")
     pub alg: Option<String>,
+    /// ECDSA signature (r, s components) if available
+    pub ecdsa_signature: Option<EcdsaSignature>,
+    /// Public key used for signature verification (hex-encoded, uncompressed 04 prefix)
+    pub public_key: Option<String>,
+}
+
+/// ECDSA P-256 signature components (r, s values).
+///
+/// These are the raw signature values that can be verified
+/// using ECDSA P-256 against a public key and message hash.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EcdsaSignature {
+    /// Signature r component (32 bytes)
+    pub r: Vec<u8>,
+    /// Signature s component (32 bytes)
+    pub s: Vec<u8>,
+}
+
+impl EcdsaSignature {
+    /// Returns the signature as hex-encoded strings.
+    pub fn to_hex(&self) -> (String, String) {
+        (hex::encode(&self.r), hex::encode(&self.s))
+    }
 }
 
 /// A C2PA assertion/claim.
@@ -181,6 +204,10 @@ pub struct C2paVerificationData {
     pub active_manifest: String,
     /// Claim generator identifier
     pub claim_generator: String,
+    /// ECDSA signature (r, s) for cryptographic verification in ZKVM
+    pub ecdsa_signature: Option<EcdsaSignature>,
+    /// Public key for ECDSA verification (hex-encoded, uncompressed 04 prefix)
+    pub public_key: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -232,4 +259,8 @@ pub enum ProvenanceError {
     /// The image data is invalid or corrupt
     #[error("Invalid image data: {0}")]
     InvalidImage(String),
+
+    /// Failed to extract signature data from manifest
+    #[error("Failed to extract signature: {0}")]
+    SignatureExtractionError(String),
 }

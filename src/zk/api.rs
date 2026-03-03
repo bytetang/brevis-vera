@@ -270,9 +270,13 @@ fn generate_c2pa_proof(
                 time: s.time.clone(),
                 cert_serial_number: s.cert_serial_number.clone(),
                 alg: s.alg.clone(),
+                ecdsa_signature: None,
+                public_key: None,
             }
         }),
         assertions: vec![], // Simplified for now
+        ecdsa_signature: None,
+        public_key: None,
     };
 
     let input = C2paProofInput {
@@ -324,9 +328,13 @@ fn generate_combined_proof(
                     time: s.time.clone(),
                     cert_serial_number: s.cert_serial_number.clone(),
                     alg: s.alg.clone(),
+                    ecdsa_signature: None,
+                    public_key: None,
                 }
             }),
             assertions: vec![],
+            ecdsa_signature: None,
+            public_key: None,
         }
     });
 
@@ -360,7 +368,7 @@ mod tests {
     fn test_prove_request_deserialization() {
         let json = r#"{
             "proof_type": "combined",
-            "original_image_hash": "abc123def456abc123def456abc123def456abc123def456abc123def456ab",
+            "original_image_hash": "abc123def456abc123def456abc123def456abc123def456abc123def456abcd",
             "c2pa_data": {
                 "active_manifest": "urn:test",
                 "claim_generator": "Test/1.0"

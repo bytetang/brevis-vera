@@ -141,6 +141,8 @@ const PROOF_VERSION: &str = "0.1.0";
 ///         assertions: vec![],
 ///         active_manifest: "urn:test".to_string(),
 ///         claim_generator: "Test/1.0".to_string(),
+///         ecdsa_signature: None,
+///         public_key: None,
 ///     },
 ///     image_hash: "abcdef1234".to_string(),
 /// };
@@ -573,6 +575,13 @@ impl PicoProver {
                     .signature_info
                     .as_ref()
                     .and_then(|s| s.alg.clone()),
+                ecdsa_signature: c2pa.ecdsa_signature.as_ref().map(|sig| {
+                    brevis_vera_zk_lib::EcdsaSignature {
+                        r: hex::encode(&sig.r),
+                        s: hex::encode(&sig.s),
+                    }
+                }),
+                public_key: c2pa.public_key.clone(),
             }
         });
 
@@ -781,10 +790,14 @@ mod tests {
                     time: Some("2026-01-01T00:00:00Z".to_string()),
                     cert_serial_number: Some("12345".to_string()),
                     alg: Some("Es256".to_string()),
+                    ecdsa_signature: None,
+                    public_key: None,
                 }),
                 assertions: vec![],
                 active_manifest: "urn:c2pa:sony:1".to_string(),
                 claim_generator: "SonyCamera/1.0".to_string(),
+                ecdsa_signature: None,
+                public_key: None,
             },
             image_hash: "a1b2c3d4e5f6".to_string(),
         }
@@ -813,10 +826,14 @@ mod tests {
                     time: None,
                     cert_serial_number: None,
                     alg: Some("Es256".to_string()),
+                    ecdsa_signature: None,
+                    public_key: None,
                 }),
                 assertions: vec![],
                 active_manifest: "urn:c2pa:sony:1".to_string(),
                 claim_generator: "SonyCamera/1.0".to_string(),
+                ecdsa_signature: None,
+                public_key: None,
             }),
             original_image_hash: "abcdef".to_string(),
             editing_records: vec![EditingRecordInput {
@@ -927,6 +944,8 @@ mod tests {
                 assertions: vec![],
                 active_manifest: "urn:test".to_string(),
                 claim_generator: "Test/1.0".to_string(),
+                ecdsa_signature: None,
+                public_key: None,
             }),
             original_image_hash: "aabbcc".to_string(),
             editing_records: vec![],

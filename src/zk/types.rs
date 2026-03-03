@@ -223,6 +223,8 @@ mod tests {
                 assertions: vec![],
                 active_manifest: "urn:test".to_string(),
                 claim_generator: "test_gen".to_string(),
+                ecdsa_signature: None,
+                public_key: None,
             },
             image_hash: "abcd1234".to_string(),
         };
