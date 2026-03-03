@@ -72,7 +72,7 @@ pub fn parse_c2pa(path: &Path) -> Result<Option<C2paMetadata>, ProvenanceError> 
     let title = active_manifest_obj.title().map(String::from);
     let format = active_manifest_obj.format().to_string();
 
-    let signature_info = extract_signature_info(active_manifest_obj);
+    let signature_info = extract_signature_info(active_manifest_obj, path);
     let assertions = extract_assertions(active_manifest_obj);
     let ingredients = extract_ingredients(active_manifest_obj);
 
@@ -89,11 +89,11 @@ pub fn parse_c2pa(path: &Path) -> Result<Option<C2paMetadata>, ProvenanceError> 
 }
 
 /// Extract signature information from a C2PA [`c2pa::Manifest`].
-fn extract_signature_info(manifest: &c2pa::Manifest) -> Option<SignatureInfo> {
+fn extract_signature_info(manifest: &c2pa::Manifest, path: &Path) -> Option<SignatureInfo> {
     let sig = manifest.signature_info()?;
 
     // Try to extract ECDSA signature and public key from the manifest
-    let (ecdsa_signature, public_key) = extract_ecdsa_data(manifest);
+    let (ecdsa_signature, public_key) = extract_ecdsa_data(manifest, path);
 
     Some(SignatureInfo {
         issuer: sig.issuer.clone(),
@@ -107,14 +107,9 @@ fn extract_signature_info(manifest: &c2pa::Manifest) -> Option<SignatureInfo> {
 
 /// Extract ECDSA signature (r, s) and public key from the C2PA manifest.
 ///
-/// Attempts to extract raw signature bytes from the manifest store for
-/// ZKVM-based cryptographic verification.
-fn extract_ecdsa_data(manifest: &c2pa::Manifest) -> (Option<EcdsaSignature>, Option<String>) {
-    // The c2pa crate doesn't directly expose raw signature bytes through its public API.
-    // The signature is embedded in JUMBF boxes in COSE format.
-    //
-    // We can try to extract the public key from the certificate chain.
-
+/// Extracts the raw signature bytes by parsing the JUMBF/COSE_Sign1 structure
+/// directly from the file, and the public key from the X.509 certificate chain.
+fn extract_ecdsa_data(manifest: &c2pa::Manifest, path: &Path) -> (Option<EcdsaSignature>, Option<String>) {
     // Get signature info which contains certificate chain
     let sig_info = match manifest.signature_info() {
         Some(info) => info,
@@ -123,21 +118,16 @@ fn extract_ecdsa_data(manifest: &c2pa::Manifest) -> (Option<EcdsaSignature>, Opt
 
     // Extract public key from the first certificate in the chain
     let cert_chain = sig_info.cert_chain();
-    if cert_chain.is_empty() {
-        return (None, None);
-    }
+    let public_key = if cert_chain.is_empty() {
+        None
+    } else {
+        extract_public_key_from_pem(cert_chain)
+    };
 
-    // Parse the PEM certificate chain to extract public key
-    // The certificate chain is in PEM format
-    let public_key = extract_public_key_from_pem(cert_chain);
+    // Extract ECDSA signature from the COSE_Sign1 structure in the file
+    let ecdsa_signature = extract_signature_from_file(path);
 
-    // Note: The actual signature r, s bytes are not available through the public API.
-    // For ZKVM verification, we would need to either:
-    // 1. Parse the JUMBF binary boxes directly
-    // 2. Use a configuration-based approach for known test keys
-    // 3. Implement COSE signature parsing
-
-    (None, public_key)
+    (ecdsa_signature, public_key)
 }
 
 /// Extract the public key from a PEM-encoded certificate chain.
@@ -177,6 +167,290 @@ fn extract_public_key_from_pem(pem_cert_chain: &str) -> Option<String> {
 
     // Convert to hex string
     Some(hex::encode(&point_bytes))
+}
+
+// ---------------------------------------------------------------------------
+// JUMBF + COSE_Sign1 signature extraction
+// ---------------------------------------------------------------------------
+
+/// Extract ECDSA signature from a C2PA-signed file by parsing the COSE_Sign1
+/// structure embedded in the JUMBF data.
+///
+/// The signature is stored inside the `c2pa.signature` JUMBF superbox as
+/// tagged CBOR (COSE_Sign1, tag 18). For ES256 (ECDSA P-256), the signature
+/// is 64 bytes in IEEE P1363 format: `r (32 bytes) || s (32 bytes)`.
+fn extract_signature_from_file(path: &Path) -> Option<EcdsaSignature> {
+    let data = std::fs::read(path).ok()?;
+    let jumbf_data = extract_jumbf_from_jpeg(&data)?;
+    let cose_cbor = find_signature_cbor_in_jumbf(&jumbf_data)?;
+    parse_ecdsa_from_cose_sign1(&cose_cbor)
+}
+
+/// Extract JUMBF data from JPEG APP11 segments.
+///
+/// Per ITU-T T.84 Annex E, JUMBF boxes are stored in APP11 (0xFFEB) markers.
+/// Multi-segment JUMBF is reassembled by grouping segments with the same
+/// box instance number (En) and ordering by packet sequence number (Z).
+fn extract_jumbf_from_jpeg(data: &[u8]) -> Option<Vec<u8>> {
+    use std::collections::BTreeMap;
+
+    let mut segments: Vec<(u32, u32, Vec<u8>)> = Vec::new();
+
+    // Verify JPEG SOI marker
+    if data.len() < 2 || data[0] != 0xFF || data[1] != 0xD8 {
+        return None;
+    }
+    let mut pos: usize = 2;
+
+    while pos + 4 <= data.len() {
+        if data[pos] != 0xFF {
+            pos += 1;
+            continue;
+        }
+
+        // Skip padding 0xFF bytes
+        while pos + 1 < data.len() && data[pos + 1] == 0xFF {
+            pos += 1;
+        }
+        if pos + 1 >= data.len() {
+            break;
+        }
+
+        let marker = data[pos + 1];
+        pos += 2; // past 0xFF XX
+
+        // End of image
+        if marker == 0xD9 {
+            break;
+        }
+
+        // Markers without length: SOI(D8), TEM(01), RST0-RST7(D0-D7)
+        if marker == 0xD8
+            || marker == 0x00
+            || marker == 0x01
+            || (0xD0..=0xD7).contains(&marker)
+        {
+            continue;
+        }
+
+        // SOS marker — all APP markers precede SOS in JPEG
+        if marker == 0xDA {
+            break;
+        }
+
+        // Read segment length (2 bytes BE, includes the length field itself)
+        if pos + 2 > data.len() {
+            break;
+        }
+        let seg_len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
+        if seg_len < 2 || pos + seg_len > data.len() {
+            break;
+        }
+
+        // APP11 (0xEB): JUMBF carrier
+        // Overhead after Lp: CI(2) + En(2) + Z(4) = 8 bytes
+        // (ISO/IEC 19566-5: En is 16-bit box instance number)
+        if marker == 0xEB && seg_len >= 10 {
+            let hdr = pos + 2; // past Lp
+            let ci = u16::from_be_bytes([data[hdr], data[hdr + 1]]);
+
+            if ci == 0x4A50 {
+                // "JP" — JUMBF identifier
+                let en = u16::from_be_bytes([data[hdr + 2], data[hdr + 3]]) as u32;
+                let z = u32::from_be_bytes([
+                    data[hdr + 4],
+                    data[hdr + 5],
+                    data[hdr + 6],
+                    data[hdr + 7],
+                ]);
+                let payload = data[hdr + 8..pos + seg_len].to_vec();
+                segments.push((en, z, payload));
+            }
+        }
+
+        pos += seg_len;
+    }
+
+    if segments.is_empty() {
+        return None;
+    }
+
+    // Group by En, sort by Z within each group, concatenate
+    let mut groups: BTreeMap<u32, Vec<(u32, Vec<u8>)>> = BTreeMap::new();
+    for (en, z, payload) in segments {
+        groups.entry(en).or_default().push((z, payload));
+    }
+
+    let mut all_jumbf = Vec::new();
+    for (_, mut segs) in groups {
+        segs.sort_by_key(|(z, _)| *z);
+        for (_, payload) in segs {
+            all_jumbf.extend_from_slice(&payload);
+        }
+    }
+
+    if all_jumbf.is_empty() {
+        None
+    } else {
+        Some(all_jumbf)
+    }
+}
+
+/// A parsed ISO BMFF / JUMBF box reference.
+struct JumbfBox<'a> {
+    /// Box type (4 ASCII bytes, e.g. b"jumb", b"jumd", b"cbor")
+    box_type: [u8; 4],
+    /// Payload bytes (everything after the box header)
+    payload: &'a [u8],
+}
+
+/// Parse a contiguous sequence of ISO BMFF boxes.
+fn parse_boxes(data: &[u8]) -> Vec<JumbfBox<'_>> {
+    let mut boxes = Vec::new();
+    let mut offset = 0;
+
+    while offset + 8 <= data.len() {
+        let size = u32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]) as usize;
+
+        let box_type = [
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
+        ];
+
+        let (header_size, box_size) = if size == 0 {
+            // Box extends to end of data
+            (8, data.len() - offset)
+        } else if size == 1 {
+            // 64-bit extended size
+            if offset + 16 > data.len() {
+                break;
+            }
+            let ext = u64::from_be_bytes([
+                data[offset + 8],
+                data[offset + 9],
+                data[offset + 10],
+                data[offset + 11],
+                data[offset + 12],
+                data[offset + 13],
+                data[offset + 14],
+                data[offset + 15],
+            ]) as usize;
+            (16, ext)
+        } else {
+            (8, size)
+        };
+
+        if box_size < header_size || offset + box_size > data.len() {
+            break;
+        }
+
+        let payload = &data[offset + header_size..offset + box_size];
+        boxes.push(JumbfBox { box_type, payload });
+        offset += box_size;
+    }
+
+    boxes
+}
+
+/// UUID for the C2PA signature superbox ("c2cs").
+const C2PA_SIGNATURE_UUID: [u8; 16] = [
+    0x63, 0x32, 0x63, 0x73, // "c2cs"
+    0x00, 0x11, 0x00, 0x10, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71,
+];
+
+/// Walk the JUMBF box tree and return the CBOR payload of the `c2pa.signature` box.
+fn find_signature_cbor_in_jumbf(jumbf_data: &[u8]) -> Option<Vec<u8>> {
+    let boxes: Vec<JumbfBox<'_>> = parse_boxes(jumbf_data);
+    find_signature_cbor_recursive(&boxes)
+}
+
+fn find_signature_cbor_recursive(boxes: &[JumbfBox<'_>]) -> Option<Vec<u8>> {
+    for b in boxes {
+        if &b.box_type == b"jumb" {
+            let children = parse_boxes(b.payload);
+
+            if is_signature_superbox(&children) {
+                // Return the first CBOR content box inside the signature superbox
+                for child in &children {
+                    if &child.box_type == b"cbor" {
+                        return Some(child.payload.to_vec());
+                    }
+                }
+                // Fallback: first non-description child that starts with COSE tag 18
+                for child in &children {
+                    if &child.box_type != b"jumd"
+                        && !child.payload.is_empty()
+                        && child.payload[0] == 0xD2
+                    {
+                        return Some(child.payload.to_vec());
+                    }
+                }
+            }
+
+            // Recurse into nested superboxes
+            if let Some(result) = find_signature_cbor_recursive(&children) {
+                return Some(result);
+            }
+        }
+    }
+    None
+}
+
+/// Check whether a superbox's children indicate it is the `c2pa.signature` box.
+fn is_signature_superbox(children: &[JumbfBox<'_>]) -> bool {
+    let desc = match children.first() {
+        Some(b) if &b.box_type == b"jumd" => b,
+        _ => return false,
+    };
+
+    if desc.payload.len() < 16 {
+        return false;
+    }
+
+    // Primary: UUID match
+    if desc.payload[..16] == C2PA_SIGNATURE_UUID {
+        return true;
+    }
+
+    // Fallback: search for the label string "c2pa.signature" in the payload
+    let needle = b"c2pa.signature";
+    desc.payload
+        .windows(needle.len())
+        .any(|w| w == needle.as_slice())
+}
+
+/// Parse the ECDSA (r, s) signature from COSE_Sign1 tagged CBOR bytes.
+///
+/// The COSE_Sign1 signature field stores ECDSA signatures in IEEE P1363
+/// format: `r || s` (no DER envelope). For ES256 this is 64 bytes.
+fn parse_ecdsa_from_cose_sign1(cose_cbor: &[u8]) -> Option<EcdsaSignature> {
+    use coset::{CborSerializable, TaggedCborSerializable};
+
+    // Try tagged CBOR first (standard), then untagged as fallback
+    let sign1 = coset::CoseSign1::from_tagged_slice(cose_cbor)
+        .or_else(|_| coset::CoseSign1::from_slice(cose_cbor))
+        .ok()?;
+
+    let sig = &sign1.signature;
+
+    match sig.len() {
+        64 => Some(EcdsaSignature {
+            r: sig[..32].to_vec(),
+            s: sig[32..].to_vec(),
+        }),
+        96 => Some(EcdsaSignature {
+            r: sig[..48].to_vec(),
+            s: sig[48..].to_vec(),
+        }),
+        _ => None,
+    }
 }
 
 /// Extract assertions/claims from a C2PA [`c2pa::Manifest`].
@@ -316,6 +590,28 @@ mod tests {
 
         // Algorithm should be es256 (ECDSA P-256)
         assert_eq!(sig_info.alg.as_deref(), Some("es256"));
+
+        // ECDSA signature should now be extracted from COSE_Sign1
+        let ecdsa_sig = sig_info
+            .ecdsa_signature
+            .as_ref()
+            .expect("should have ECDSA signature extracted from COSE_Sign1");
+        assert_eq!(ecdsa_sig.r.len(), 32, "r component should be 32 bytes (P-256)");
+        assert_eq!(ecdsa_sig.s.len(), 32, "s component should be 32 bytes (P-256)");
+        let (r_hex, s_hex) = ecdsa_sig.to_hex();
+        assert!(!r_hex.is_empty());
+        assert!(!s_hex.is_empty());
+        eprintln!("ECDSA signature extracted:");
+        eprintln!("  r: {}", r_hex);
+        eprintln!("  s: {}", s_hex);
+
+        // Public key should also be available
+        let pub_key = sig_info
+            .public_key
+            .as_ref()
+            .expect("should have public key");
+        assert!(pub_key.starts_with("04"), "uncompressed EC point prefix");
+        eprintln!("  public_key: {}", pub_key);
 
         // Should have a claim generator
         assert!(!metadata.claim_generator.is_empty());

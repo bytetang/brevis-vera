@@ -112,6 +112,73 @@ fn test_pico_crop() {
     );
 }
 
+/// End-to-end Pico proof with crop **re-execution** inside the ZKVM.
+///
+/// Unlike `test_pico_crop` (parameter-only), this test supplies raw RGBA
+/// pixels so the guest program re-executes the crop, hashes the result,
+/// and compares against the claimed output hash.
+#[test]
+fn test_pico_crop_reexecution() {
+    let original_png = make_test_image(16, 16);
+
+    // Extract raw RGBA pixels from the PNG (same format the guest will use)
+    let (raw_pixels, img_w, img_h) = operations::extract_raw_rgba(&original_png).unwrap();
+    assert_eq!(img_w, 16);
+    assert_eq!(img_h, 16);
+
+    let crop_params = CropParams {
+        x: 2,
+        y: 2,
+        width: 8,
+        height: 8,
+    };
+
+    // Run the crop — its record already hashes raw RGBA pixels
+    let crop_result = operations::crop(&original_png, &crop_params).unwrap();
+    let record = &crop_result.record;
+
+    // The hashes in the record are over raw pixels, which is what the ZKVM
+    // guest will recompute. Use them directly.
+    let input = EditingProofInput {
+        original_image_hash: record.original_image_hash.clone(),
+        edited_image_hash: record.edited_image_hash.clone(),
+        editing_records: vec![EditingRecordInput {
+            operation: EditOperation::Crop,
+            parameters: serde_json::json!({
+                "x": crop_params.x,
+                "y": crop_params.y,
+                "width": crop_params.width,
+                "height": crop_params.height,
+                "source_width": img_w,
+                "source_height": img_h,
+            }),
+            input_hash: record.original_image_hash.clone(),
+            output_hash: record.edited_image_hash.clone(),
+            raw_pixels: Some(raw_pixels),
+            pixel_width: Some(img_w),
+            pixel_height: Some(img_h),
+        }],
+    };
+
+    let prover = pico_prover();
+    let proof = prover.prove_editing(&input).unwrap();
+
+    assert!(
+        proof.public_inputs.editing_verified,
+        "crop re-execution should be verified"
+    );
+    assert_eq!(
+        proof.public_inputs.operations_applied,
+        vec![EditOperation::Crop]
+    );
+    assert_eq!(proof.metadata.prover_type, "pico");
+    println!(
+        "Pico crop re-execution proof generated in {}ms ({} bytes)",
+        proof.metadata.generation_time_ms,
+        proof.proof_bytes.len()
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Resize
 // ---------------------------------------------------------------------------
