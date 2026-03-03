@@ -128,8 +128,13 @@ pub enum OperationParams {
         width: u32,
         height: u32,
     },
-    /// Resize parameters
-    Resize { width: u32, height: u32 },
+    /// Resize parameters (includes source dimensions for re-execution)
+    Resize {
+        width: u32,
+        height: u32,
+        source_width: u32,
+        source_height: u32,
+    },
     /// Rotate parameters (angle: 90, 180, or 270)
     Rotate { angle: u32 },
 }

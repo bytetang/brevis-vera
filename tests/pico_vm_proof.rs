@@ -228,6 +228,61 @@ fn test_pico_resize() {
     );
 }
 
+/// End-to-end Pico proof with resize **re-execution** inside the ZKVM.
+///
+/// Supplies raw RGBA pixels so the guest re-executes nearest-neighbor
+/// resize and verifies the output hash matches.
+#[test]
+fn test_pico_resize_reexecution() {
+    let original_png = make_test_image(16, 16);
+
+    let (raw_pixels, img_w, img_h) = operations::extract_raw_rgba(&original_png).unwrap();
+    assert_eq!(img_w, 16);
+    assert_eq!(img_h, 16);
+
+    let resize_params = ResizeParams { width: 8, height: 8 };
+
+    let resize_result = operations::resize(&original_png, &resize_params).unwrap();
+    let record = &resize_result.record;
+
+    let input = EditingProofInput {
+        original_image_hash: record.original_image_hash.clone(),
+        edited_image_hash: record.edited_image_hash.clone(),
+        editing_records: vec![EditingRecordInput {
+            operation: EditOperation::Resize,
+            parameters: serde_json::json!({
+                "original_width": img_w,
+                "original_height": img_h,
+                "new_width": resize_params.width,
+                "new_height": resize_params.height,
+            }),
+            input_hash: record.original_image_hash.clone(),
+            output_hash: record.edited_image_hash.clone(),
+            raw_pixels: Some(raw_pixels),
+            pixel_width: Some(img_w),
+            pixel_height: Some(img_h),
+        }],
+    };
+
+    let prover = pico_prover();
+    let proof = prover.prove_editing(&input).unwrap();
+
+    assert!(
+        proof.public_inputs.editing_verified,
+        "resize re-execution should be verified"
+    );
+    assert_eq!(
+        proof.public_inputs.operations_applied,
+        vec![EditOperation::Resize]
+    );
+    assert_eq!(proof.metadata.prover_type, "pico");
+    println!(
+        "Pico resize re-execution proof generated in {}ms ({} bytes)",
+        proof.metadata.generation_time_ms,
+        proof.proof_bytes.len()
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Rotate
 // ---------------------------------------------------------------------------
@@ -271,6 +326,58 @@ fn test_pico_rotate() {
     assert_eq!(proof.metadata.prover_type, "pico");
     println!(
         "Pico rotate proof generated in {}ms ({} bytes)",
+        proof.metadata.generation_time_ms,
+        proof.proof_bytes.len()
+    );
+}
+
+/// End-to-end Pico proof with rotate **re-execution** inside the ZKVM.
+///
+/// Supplies raw RGBA pixels so the guest re-executes 90° rotation by
+/// pixel permutation and verifies the output hash matches.
+#[test]
+fn test_pico_rotate_reexecution() {
+    let original_png = make_test_image(16, 12);
+
+    let (raw_pixels, img_w, img_h) = operations::extract_raw_rgba(&original_png).unwrap();
+    assert_eq!(img_w, 16);
+    assert_eq!(img_h, 12);
+
+    let rotate_params = RotateParams { angle: RotationAngle::Deg90 };
+
+    let rotate_result = operations::rotate(&original_png, &rotate_params).unwrap();
+    let record = &rotate_result.record;
+
+    let input = EditingProofInput {
+        original_image_hash: record.original_image_hash.clone(),
+        edited_image_hash: record.edited_image_hash.clone(),
+        editing_records: vec![EditingRecordInput {
+            operation: EditOperation::Rotate,
+            parameters: serde_json::json!({
+                "angle": 90,
+            }),
+            input_hash: record.original_image_hash.clone(),
+            output_hash: record.edited_image_hash.clone(),
+            raw_pixels: Some(raw_pixels),
+            pixel_width: Some(img_w),
+            pixel_height: Some(img_h),
+        }],
+    };
+
+    let prover = pico_prover();
+    let proof = prover.prove_editing(&input).unwrap();
+
+    assert!(
+        proof.public_inputs.editing_verified,
+        "rotate re-execution should be verified"
+    );
+    assert_eq!(
+        proof.public_inputs.operations_applied,
+        vec![EditOperation::Rotate]
+    );
+    assert_eq!(proof.metadata.prover_type, "pico");
+    println!(
+        "Pico rotate re-execution proof generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
         proof.proof_bytes.len()
     );

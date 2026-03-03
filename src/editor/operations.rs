@@ -11,8 +11,6 @@
 //! Photon's resize/rotate API is limited.
 
 use chrono::Utc;
-use image::imageops::FilterType;
-use image::DynamicImage;
 use photon_rs::transform::crop as photon_crop;
 use photon_rs::PhotonImage;
 
@@ -20,6 +18,22 @@ use super::types::{
     CropParams, EditOperation, EditResult, EditingRecord, EditorError, ResizeParams, RotateParams,
     RotationAngle, sha256_hex,
 };
+
+/// Decode image bytes into a [`PhotonImage`], returning a proper error
+/// instead of panicking on invalid input.
+///
+/// `PhotonImage::new_from_byteslice` internally calls `.unwrap()` and panics
+/// when the bytes are not a valid image.  We first validate via the `image`
+/// crate, which returns a `Result`, and only then hand the bytes to Photon.
+fn decode_photon(image_bytes: &[u8]) -> Result<PhotonImage, EditorError> {
+    // Quick validation – this returns Err on garbage input.
+    image::load_from_memory(image_bytes).map_err(|e| {
+        EditorError::DecodeError(format!("failed to decode image: {e}"))
+    })?;
+
+    // Safe to unwrap now – the bytes are valid.
+    Ok(PhotonImage::new_from_byteslice(image_bytes.to_vec()))
+}
 
 /// Crop an image to the specified rectangular region.
 ///
@@ -31,7 +45,7 @@ use super::types::{
 /// * [`EditorError::DecodeError`] if the image cannot be decoded
 /// * [`EditorError::CropOutOfBounds`] if the crop region exceeds image bounds
 pub fn crop(image_bytes: &[u8], params: &CropParams) -> Result<EditResult, EditorError> {
-    let mut img = PhotonImage::new_from_byteslice(image_bytes.to_vec());
+    let mut img = decode_photon(image_bytes)?;
 
     let img_w = img.get_width();
     let img_h = img.get_height();
@@ -111,8 +125,6 @@ pub fn crop(image_bytes: &[u8], params: &CropParams) -> Result<EditResult, Edito
 /// * [`EditorError::DecodeError`] if the image cannot be decoded
 /// * [`EditorError::InvalidResizeDimensions`] if width or height is zero
 pub fn resize(image_bytes: &[u8], params: &ResizeParams) -> Result<EditResult, EditorError> {
-    let original_hash = sha256_hex(image_bytes);
-
     if params.width == 0 || params.height == 0 {
         return Err(EditorError::InvalidResizeDimensions {
             width: params.width,
@@ -120,18 +132,36 @@ pub fn resize(image_bytes: &[u8], params: &ResizeParams) -> Result<EditResult, E
         });
     }
 
-    let img = load_dynamic_image(image_bytes)?;
-    let original_w = img.width();
-    let original_h = img.height();
+    // Decode to raw RGBA pixels for canonical hashing (matches ZKVM guest)
+    let src_img = decode_photon(image_bytes)?;
+    let original_w = src_img.get_width();
+    let original_h = src_img.get_height();
+    let original_raw_pixels = src_img.get_raw_pixels();
+    let original_hash = sha256_hex(&original_raw_pixels);
 
-    let resized = img.resize_exact(params.width, params.height, FilterType::Lanczos3);
+    // Perform nearest-neighbor resize on raw RGBA pixels.
+    // This matches what the ZKVM guest will re-execute.
+    let resized_pixels = nearest_neighbor_resize(
+        &original_raw_pixels,
+        original_w,
+        original_h,
+        params.width,
+        params.height,
+    );
+    let edited_hash = sha256_hex(&resized_pixels);
 
-    let out_bytes = encode_png(&resized)?;
-    let edited_hash = sha256_hex(&out_bytes);
+    // Encode the resized image as PNG for output.
+    // Build a PhotonImage from the resized raw pixels.
+    let resized_photon = PhotonImage::new(
+        resized_pixels,
+        params.width,
+        params.height,
+    );
+    let out_bytes = resized_photon.get_bytes();
 
     Ok(EditResult {
-        width: resized.width(),
-        height: resized.height(),
+        width: params.width,
+        height: params.height,
         image_bytes: out_bytes,
         record: EditingRecord {
             operation: EditOperation::Resize,
@@ -157,27 +187,36 @@ pub fn resize(image_bytes: &[u8], params: &ResizeParams) -> Result<EditResult, E
 /// # Errors
 /// * [`EditorError::DecodeError`] if the image cannot be decoded
 pub fn rotate(image_bytes: &[u8], params: &RotateParams) -> Result<EditResult, EditorError> {
-    let original_hash = sha256_hex(image_bytes);
+    // Decode to raw RGBA pixels for canonical hashing (matches ZKVM guest)
+    let src_img = decode_photon(image_bytes)?;
+    let src_w = src_img.get_width();
+    let src_h = src_img.get_height();
+    let original_raw_pixels = src_img.get_raw_pixels();
+    let original_hash = sha256_hex(&original_raw_pixels);
 
-    let img = load_dynamic_image(image_bytes)?;
-
-    let rotated = match params.angle {
-        RotationAngle::Deg90 => img.rotate90(),
-        RotationAngle::Deg180 => img.rotate180(),
-        RotationAngle::Deg270 => img.rotate270(),
+    let angle: u32 = match params.angle {
+        RotationAngle::Deg90 => 90,
+        RotationAngle::Deg180 => 180,
+        RotationAngle::Deg270 => 270,
     };
 
-    let out_bytes = encode_png(&rotated)?;
-    let edited_hash = sha256_hex(&out_bytes);
+    // Perform rotation on raw RGBA pixels (matches ZKVM guest)
+    let (rotated_pixels, out_w, out_h) =
+        rotate_pixels(&original_raw_pixels, src_w, src_h, angle);
+    let edited_hash = sha256_hex(&rotated_pixels);
+
+    // Encode as PNG for output
+    let rotated_photon = PhotonImage::new(rotated_pixels, out_w, out_h);
+    let out_bytes = rotated_photon.get_bytes();
 
     Ok(EditResult {
-        width: rotated.width(),
-        height: rotated.height(),
+        width: out_w,
+        height: out_h,
         image_bytes: out_bytes,
         record: EditingRecord {
             operation: EditOperation::Rotate,
             parameters: serde_json::json!({
-                "angle": params.angle.to_string().parse::<u32>().unwrap(),
+                "angle": angle,
             }),
             original_image_hash: original_hash,
             edited_image_hash: edited_hash,
@@ -190,19 +229,81 @@ pub fn rotate(image_bytes: &[u8], params: &RotateParams) -> Result<EditResult, E
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Load raw bytes into a `DynamicImage`.
-fn load_dynamic_image(bytes: &[u8]) -> Result<DynamicImage, EditorError> {
-    image::load_from_memory(bytes)
-        .map_err(|e| EditorError::DecodeError(e.to_string()))
+// ---------------------------------------------------------------------------
+// Pure pixel operations (deterministic, ZKVM-reproducible)
+// ---------------------------------------------------------------------------
+
+/// Nearest-neighbor resize on raw RGBA pixel data.
+///
+/// For each output pixel `(ox, oy)`, sample the source pixel at:
+///   `src_x = ox * src_w / dst_w`
+///   `src_y = oy * src_h / dst_h`
+///
+/// This is intentionally simple so the ZKVM guest can reproduce it exactly
+/// using only integer arithmetic (no floating point, no interpolation).
+pub fn nearest_neighbor_resize(
+    pixels: &[u8],
+    src_w: u32,
+    src_h: u32,
+    dst_w: u32,
+    dst_h: u32,
+) -> Vec<u8> {
+    let src_stride = (src_w as usize) * 4;
+    let mut out = Vec::with_capacity((dst_w as usize) * (dst_h as usize) * 4);
+
+    for oy in 0..dst_h {
+        let sy = (oy as usize * src_h as usize) / dst_h as usize;
+        for ox in 0..dst_w {
+            let sx = (ox as usize * src_w as usize) / dst_w as usize;
+            let src_off = sy * src_stride + sx * 4;
+            out.extend_from_slice(&pixels[src_off..src_off + 4]);
+        }
+    }
+
+    out
 }
 
-/// Encode a `DynamicImage` to PNG bytes.
-fn encode_png(img: &DynamicImage) -> Result<Vec<u8>, EditorError> {
-    let mut buf = std::io::Cursor::new(Vec::new());
-    img.write_to(&mut buf, image::ImageFormat::Png)
-        .map_err(|e| EditorError::EncodeError(e.to_string()))?;
-    Ok(buf.into_inner())
+/// Rotate raw RGBA pixels by 90, 180, or 270 degrees clockwise.
+///
+/// Returns `(rotated_pixels, new_width, new_height)`.
+///
+/// Pure pixel permutation — no interpolation, no floating point.
+pub fn rotate_pixels(
+    pixels: &[u8],
+    w: u32,
+    h: u32,
+    angle: u32,
+) -> (Vec<u8>, u32, u32) {
+    let (out_w, out_h) = match angle {
+        90 | 270 => (h, w),
+        180 => (w, h),
+        _ => (w, h),
+    };
+
+    let src_stride = (w as usize) * 4;
+    let dst_stride = (out_w as usize) * 4;
+    let mut out = vec![0u8; (out_w as usize) * (out_h as usize) * 4];
+
+    for sy in 0..h {
+        for sx in 0..w {
+            let (dx, dy) = match angle {
+                90 => (h - 1 - sy, sx),
+                180 => (w - 1 - sx, h - 1 - sy),
+                270 => (sy, w - 1 - sx),
+                _ => (sx, sy),
+            };
+            let src_off = (sy as usize) * src_stride + (sx as usize) * 4;
+            let dst_off = (dy as usize) * dst_stride + (dx as usize) * 4;
+            out[dst_off..dst_off + 4].copy_from_slice(&pixels[src_off..src_off + 4]);
+        }
+    }
+
+    (out, out_w, out_h)
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 /// Extract raw RGBA pixel bytes from encoded image bytes (PNG/JPEG).
 ///
@@ -219,6 +320,7 @@ pub fn extract_raw_rgba(image_bytes: &[u8]) -> Result<(Vec<u8>, u32, u32), Edito
 #[cfg(test)]
 mod tests {
     use super::*;
+    use image::DynamicImage;
 
     /// Create a simple 100x80 RGBA test image as raw PNG bytes.
     fn test_png(width: u32, height: u32) -> Vec<u8> {

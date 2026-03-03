@@ -192,7 +192,7 @@ fn verify_ecdsa_p256(signature: &EcdsaSignature, public_key: &str, message_hash:
 // ---------------------------------------------------------------------------
 
 /// Verify the editing operations form a valid hash chain,
-/// with crop re-execution using raw pixel witnesses.
+/// with re-execution using raw pixel witnesses.
 ///
 /// For crop operations:
 /// 1. Verify SHA-256(witness pixels) == input_hash
@@ -200,8 +200,15 @@ fn verify_ecdsa_p256(signature: &EcdsaSignature, public_key: &str, message_hash:
 /// 3. Re-execute crop by extracting sub-rectangle from raw pixels
 /// 4. Verify SHA-256(cropped pixels) == output_hash
 ///
-/// For non-crop operations (resize, rotate):
-/// Parameter-only validation (no re-execution witness required).
+/// For rotate operations:
+/// 1. Verify SHA-256(witness pixels) == input_hash
+/// 2. Re-execute rotation (90/180/270°) by pixel permutation
+/// 3. Verify SHA-256(rotated pixels) == output_hash
+///
+/// For resize operations:
+/// 1. Verify SHA-256(witness pixels) == input_hash
+/// 2. Re-execute nearest-neighbor resize using integer arithmetic
+/// 3. Verify SHA-256(resized pixels) == output_hash
 fn verify_editing(
     original_hash: &str,
     edited_hash: &str,
@@ -230,26 +237,46 @@ fn verify_editing(
         // Validate and verify based on operation type
         match &record.params {
             OperationParams::Crop { x, y, width, height } => {
-                // Crop requires a witness for re-execution
-                if i >= witnesses.len() {
-                    return (false, 0);
-                }
-                let witness = &witnesses[i];
-
-                if !verify_crop_with_witness(record, witness, *x, *y, *width, *height) {
-                    return (false, 0);
+                if i < witnesses.len() && !witnesses[i].pixels.is_empty() {
+                    if !verify_crop_with_witness(record, &witnesses[i], *x, *y, *width, *height) {
+                        return (false, 0);
+                    }
+                } else {
+                    // Fallback: parameter-only validation
+                    if *width == 0 || *height == 0 {
+                        return (false, 0);
+                    }
                 }
             }
-            OperationParams::Resize { width, height } => {
-                // Parameter-only validation for resize
-                if *width == 0 || *height == 0 {
-                    return (false, 0);
+            OperationParams::Resize { width, height, source_width, source_height } => {
+                if i < witnesses.len() && !witnesses[i].pixels.is_empty() {
+                    if !verify_resize_with_witness(
+                        record,
+                        &witnesses[i],
+                        *width,
+                        *height,
+                        *source_width,
+                        *source_height,
+                    ) {
+                        return (false, 0);
+                    }
+                } else {
+                    // Fallback: parameter-only validation
+                    if *width == 0 || *height == 0 {
+                        return (false, 0);
+                    }
                 }
             }
             OperationParams::Rotate { angle } => {
-                // Parameter-only validation for rotate
-                if *angle != 90 && *angle != 180 && *angle != 270 {
-                    return (false, 0);
+                if i < witnesses.len() && !witnesses[i].pixels.is_empty() {
+                    if !verify_rotate_with_witness(record, &witnesses[i], *angle) {
+                        return (false, 0);
+                    }
+                } else {
+                    // Fallback: parameter-only validation
+                    if *angle != 90 && *angle != 180 && *angle != 270 {
+                        return (false, 0);
+                    }
                 }
             }
         }
@@ -344,18 +371,157 @@ fn verify_operation_params(record: &EditingRecordData) -> bool {
         OperationParams::Crop {
             width, height, ..
         } => {
-            // Crop dimensions must be non-zero
             *width > 0 && *height > 0
         }
-        OperationParams::Resize { width, height } => {
-            // Resize dimensions must be non-zero
+        OperationParams::Resize { width, height, .. } => {
             *width > 0 && *height > 0
         }
         OperationParams::Rotate { angle } => {
-            // Angle must be 90, 180, or 270
             *angle == 90 || *angle == 180 || *angle == 270
         }
     }
+}
+
+/// Verify a rotate operation by re-executing it on the witness pixels.
+///
+/// 1. Verifies SHA-256(witness.pixels) == record.input_hash
+/// 2. Re-executes rotation using pixel permutation
+/// 3. Verifies SHA-256(rotated_pixels) == record.output_hash
+fn verify_rotate_with_witness(
+    record: &EditingRecordData,
+    witness: &ImageWitness,
+    angle: u32,
+) -> bool {
+    if angle != 90 && angle != 180 && angle != 270 {
+        return false;
+    }
+
+    let w = witness.width;
+    let h = witness.height;
+
+    let expected_size = (w as usize) * (h as usize) * 4;
+    if witness.pixels.len() != expected_size {
+        return false;
+    }
+
+    // Verify input hash
+    let input_hash_computed = sha256_hex_bytes(&witness.pixels);
+    if input_hash_computed != record.input_hash {
+        return false;
+    }
+
+    // Re-execute rotation
+    let rotated = rotate_pixels(&witness.pixels, w, h, angle);
+
+    // Verify output hash
+    let output_hash_computed = sha256_hex_bytes(&rotated);
+    if output_hash_computed != record.output_hash {
+        return false;
+    }
+
+    true
+}
+
+/// Verify a resize operation by re-executing nearest-neighbor resize.
+///
+/// 1. Verifies SHA-256(witness.pixels) == record.input_hash
+/// 2. Re-executes nearest-neighbor resize
+/// 3. Verifies SHA-256(resized_pixels) == record.output_hash
+fn verify_resize_with_witness(
+    record: &EditingRecordData,
+    witness: &ImageWitness,
+    dst_w: u32,
+    dst_h: u32,
+    src_w: u32,
+    src_h: u32,
+) -> bool {
+    if dst_w == 0 || dst_h == 0 {
+        return false;
+    }
+
+    // Witness dimensions must match declared source dimensions
+    if witness.width != src_w || witness.height != src_h {
+        return false;
+    }
+
+    let expected_size = (src_w as usize) * (src_h as usize) * 4;
+    if witness.pixels.len() != expected_size {
+        return false;
+    }
+
+    // Verify input hash
+    let input_hash_computed = sha256_hex_bytes(&witness.pixels);
+    if input_hash_computed != record.input_hash {
+        return false;
+    }
+
+    // Re-execute nearest-neighbor resize
+    let resized = nearest_neighbor_resize(&witness.pixels, src_w, src_h, dst_w, dst_h);
+
+    // Verify output hash
+    let output_hash_computed = sha256_hex_bytes(&resized);
+    if output_hash_computed != record.output_hash {
+        return false;
+    }
+
+    true
+}
+
+/// Nearest-neighbor resize on raw RGBA pixel data.
+///
+/// For each output pixel (ox, oy), samples the source pixel at:
+///   src_x = ox * src_w / dst_w
+///   src_y = oy * src_h / dst_h
+///
+/// Pure integer arithmetic — no floating point.
+fn nearest_neighbor_resize(
+    pixels: &[u8],
+    src_w: u32,
+    src_h: u32,
+    dst_w: u32,
+    dst_h: u32,
+) -> Vec<u8> {
+    let src_stride = (src_w as usize) * 4;
+    let mut out = Vec::with_capacity((dst_w as usize) * (dst_h as usize) * 4);
+
+    for oy in 0..dst_h {
+        let sy = (oy as usize * src_h as usize) / dst_h as usize;
+        for ox in 0..dst_w {
+            let sx = (ox as usize * src_w as usize) / dst_w as usize;
+            let src_off = sy * src_stride + sx * 4;
+            out.extend_from_slice(&pixels[src_off..src_off + 4]);
+        }
+    }
+
+    out
+}
+
+/// Rotate raw RGBA pixels by 90, 180, or 270 degrees clockwise.
+fn rotate_pixels(pixels: &[u8], w: u32, h: u32, angle: u32) -> Vec<u8> {
+    let (out_w, out_h) = match angle {
+        90 | 270 => (h, w),
+        _ => (w, h),
+    };
+
+    let src_stride = (w as usize) * 4;
+    let dst_stride = (out_w as usize) * 4;
+    let mut out = vec![0u8; (out_w as usize) * (out_h as usize) * 4];
+
+    for sy in 0..h {
+        for sx in 0..w {
+            let (dx, dy) = match angle {
+                90 => (h - 1 - sy, sx),
+                180 => (w - 1 - sx, h - 1 - sy),
+                270 => (sy, w - 1 - sx),
+                _ => (sx, sy),
+            };
+            let src_off = (sy as usize) * src_stride + (sx as usize) * 4;
+            let dst_off = (dy as usize) * dst_stride + (dx as usize) * 4;
+            out[dst_off..dst_off + 4].copy_from_slice(&pixels[src_off..src_off + 4]);
+        }
+    }
+
+    out
 }
 
 /// Compute SHA-256 hash and return as hex string.

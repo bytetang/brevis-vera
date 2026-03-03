@@ -649,8 +649,10 @@ impl PicoProver {
                 height: params["height"].as_u64().unwrap_or(0) as u32,
             },
             EditOperation::Resize => OperationParams::Resize {
-                width: params["width"].as_u64().unwrap_or(0) as u32,
-                height: params["height"].as_u64().unwrap_or(0) as u32,
+                width: params["width"].as_u64().or_else(|| params["new_width"].as_u64()).unwrap_or(0) as u32,
+                height: params["height"].as_u64().or_else(|| params["new_height"].as_u64()).unwrap_or(0) as u32,
+                source_width: params["original_width"].as_u64().unwrap_or(0) as u32,
+                source_height: params["original_height"].as_u64().unwrap_or(0) as u32,
             },
             EditOperation::Rotate => OperationParams::Rotate {
                 angle: params["angle"].as_u64().unwrap_or(0) as u32,
