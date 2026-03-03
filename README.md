@@ -130,6 +130,22 @@ cargo test --test pico_vm_proof --features pico  # Pico ZKVM E2E tests (slow)
 | `tests/zk_proof.rs` | ZK proof generation with SimulatedProver | Fast |
 | `tests/pico_vm_proof.rs` | Real ZKVM proof generation with PicoProver | Slow (~30s per test) |
 
+### Benchmark: Run Specific Edit Operation Tests
+
+```bash
+# Run all Pico edit operation tests (release mode for accurate timing)
+cargo test --features pico --test pico_vm_proof --release -- --nocapture
+
+# Run only crop tests
+cargo test --features pico --test pico_vm_proof --release crop -- --nocapture
+
+# Run only resize tests
+cargo test --features pico --test pico_vm_proof --release resize -- --nocapture
+
+# Run only rotate tests
+cargo test --features pico --test pico_vm_proof --release rotate -- --nocapture
+```
+
 ### Run Only Fast Tests
 
 ```bash
