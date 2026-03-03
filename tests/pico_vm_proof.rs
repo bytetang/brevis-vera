@@ -584,3 +584,93 @@ fn test_pico_real_image_edit_and_prove() {
         proof.proof_bytes.len()
     );
 }
+
+// ---------------------------------------------------------------------------
+// Real Image Test
+// ---------------------------------------------------------------------------
+
+/// End-to-end Pico proof with real image (test_img_small.JPG) using crop re-execution.
+/// cargo test --release --test pico_vm_proof test_pico_real_image_crop_reexecution -- --nocapture 2>&1
+#[test]
+fn test_pico_real_image_crop_reexecution() {
+    // Load the real test image
+    let image_path = std::path::Path::new("imgs/test_img_small.JPG");
+    let original_bytes = std::fs::read(image_path).expect("Failed to read test image");
+    let original_png = image::load_from_memory(&original_bytes)
+        .expect("Failed to decode image")
+        .to_rgba8();
+    let (img_w, img_h) = original_png.dimensions();
+    println!("Loaded image: {}x{}", img_w, img_h);
+
+    // Encode as PNG for the operations module
+    let mut png_buf = Vec::new();
+    {
+        let encoder = image::codecs::png::PngEncoder::new(&mut png_buf);
+        image::ImageEncoder::write_image(
+            encoder,
+            original_png.as_raw(),
+            img_w,
+            img_h,
+            image::ExtendedColorType::Rgba8,
+        )
+        .unwrap();
+    }
+
+    // Extract raw RGBA pixels
+    let (raw_pixels, _, _) = operations::extract_raw_rgba(&png_buf).unwrap();
+
+    // Calculate original hash (SHA-256 of PNG)
+    let original_hash = sha256_hex(&png_buf);
+
+    // Define crop parameters (using a valid crop region)
+    let crop_params = CropParams {
+        x: 0,
+        y: 0,
+        width: img_w / 2,
+        height: img_h / 2,
+    };
+
+    // Run the crop operation
+    let crop_result = operations::crop(&png_buf, &crop_params).unwrap();
+    let record = &crop_result.record;
+
+    // Build the proof input
+    let input = EditingProofInput {
+        original_image_hash: original_hash,
+        edited_image_hash: record.edited_image_hash.clone(),
+        editing_records: vec![EditingRecordInput {
+            operation: EditOperation::Crop,
+            parameters: serde_json::json!({
+                "x": crop_params.x,
+                "y": crop_params.y,
+                "width": crop_params.width,
+                "height": crop_params.height,
+                "source_width": img_w,
+                "source_height": img_h,
+            }),
+            input_hash: record.original_image_hash.clone(),
+            output_hash: record.edited_image_hash.clone(),
+            raw_pixels: Some(raw_pixels),
+            pixel_width: Some(img_w),
+            pixel_height: Some(img_h),
+        }],
+    };
+
+    let prover = pico_prover();
+    let proof = prover.prove_editing(&input).unwrap();
+
+    assert!(
+        proof.public_inputs.editing_verified,
+        "crop re-execution should be verified"
+    );
+    assert_eq!(
+        proof.public_inputs.operations_applied,
+        vec![EditOperation::Crop]
+    );
+    assert_eq!(proof.metadata.prover_type, "pico");
+    println!(
+        "Pico real-image crop re-execution proof generated in {}ms ({} bytes)",
+        proof.metadata.generation_time_ms,
+        proof.proof_bytes.len()
+    );
+}
