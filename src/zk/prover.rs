@@ -599,10 +599,37 @@ impl PicoProver {
             })
             .collect();
 
+        // Build image witnesses from raw pixel data in editing records.
+        // Each editing record may optionally carry raw_pixels for re-execution
+        // verification inside the ZKVM guest.
+        let image_witnesses = input
+            .editing_records
+            .iter()
+            .map(|rec| {
+                if let (Some(pixels), Some(w), Some(h)) =
+                    (rec.raw_pixels.as_ref(), rec.pixel_width, rec.pixel_height)
+                {
+                    ImageWitness {
+                        pixels: pixels.clone(),
+                        width: w,
+                        height: h,
+                    }
+                } else {
+                    // Empty witness for operations that don't need re-execution
+                    ImageWitness {
+                        pixels: vec![],
+                        width: 0,
+                        height: 0,
+                    }
+                }
+            })
+            .collect();
+
         CircuitInput {
             c2pa_data,
             original_image_hash: input.original_image_hash.clone(),
             editing_records,
+            image_witnesses,
             edited_image_hash: input.edited_image_hash.clone(),
         }
     }
@@ -814,6 +841,9 @@ mod tests {
                 }),
                 input_hash: "orig_hash".to_string(),
                 output_hash: "cropped_hash".to_string(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             }],
         }
     }
@@ -843,6 +873,9 @@ mod tests {
                 }),
                 input_hash: "abcdef".to_string(),
                 output_hash: "cropped".to_string(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             }],
             edited_image_hash: Some("cropped".to_string()),
         }
@@ -913,6 +946,9 @@ mod tests {
                 parameters: serde_json::json!({"x": 0, "y": 0, "width": 100, "height": 100}),
                 input_hash: "orig".to_string(),
                 output_hash: "cropped".to_string(), // doesn't match edited_image_hash
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             }],
         };
 
@@ -968,6 +1004,9 @@ mod tests {
                 parameters: serde_json::json!({"width": 200, "height": 100}),
                 input_hash: "orig".to_string(),
                 output_hash: "resized".to_string(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             }],
             edited_image_hash: Some("resized".to_string()),
         };
@@ -1066,18 +1105,27 @@ mod tests {
                     parameters: serde_json::json!({"x": 0, "y": 0, "width": 100, "height": 100}),
                     input_hash: "orig".to_string(),
                     output_hash: "cropped".to_string(),
+                    raw_pixels: None,
+                    pixel_width: None,
+                    pixel_height: None,
                 },
                 EditingRecordInput {
                     operation: EditOperation::Resize,
                     parameters: serde_json::json!({"width": 50, "height": 50}),
                     input_hash: "cropped".to_string(),
                     output_hash: "resized".to_string(),
+                    raw_pixels: None,
+                    pixel_width: None,
+                    pixel_height: None,
                 },
                 EditingRecordInput {
                     operation: EditOperation::Rotate,
                     parameters: serde_json::json!({"angle": "90"}),
                     input_hash: "resized".to_string(),
                     output_hash: "final".to_string(),
+                    raw_pixels: None,
+                    pixel_width: None,
+                    pixel_height: None,
                 },
             ],
         };

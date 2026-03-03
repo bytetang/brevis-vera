@@ -85,11 +85,19 @@ Example:
 
 The c2pa library does **not** expose the raw signature bytes through its public API. The signature is stored in:
 - JUMBF (JPEG Universal Metadata Box Format) binary boxes
-- COSE (CBOR Object Signing and Encryption) format
+- COSE (CBOR Object Signing and Encryption) format inside `c2pa.signature` box
+
+**Investigation Results**:
+- The internal `Claim` struct has `signature_val()` method but it's `pub(crate)` - not accessible externally
+- The signature is referenced via URL: `self#jumbf=/c2pa/urn:uuid:.../c2pa.signature`
+- JUMBF boxes can be loaded via `c2pa::jumbf_io::load_jumbf_from_file()`
+- The signature is stored in COSE_Sign1 format within nested JUMBF/CBOR structures
+- Parsing requires manual JUMBF box traversal and COSE decoding
 
 **Workarounds**:
 1. **For testing**: Manually provide known signature data
-2. **Future**: Parse JUMBF/COSE binary format directly
+2. **Future**: Implement full JUMBF/COSE binary parsing (requires significant effort)
+3. **Alternative**: Use c2pa's internal verification result as a proxy
 
 ### Why c2pa Library Doesn't Expose Signatures
 

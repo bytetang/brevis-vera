@@ -942,6 +942,8 @@ dependencies = [
  "brevis-vera-zk-lib",
  "c2pa",
  "chrono",
+ "ciborium",
+ "coset",
  "der-parser",
  "futures",
  "hex",
@@ -972,6 +974,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

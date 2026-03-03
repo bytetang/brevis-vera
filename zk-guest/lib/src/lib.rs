@@ -50,6 +50,10 @@ pub struct CircuitInput {
     pub original_image_hash: String,
     /// Editing operation records (empty if no edits)
     pub editing_records: Vec<EditingRecordData>,
+    /// Raw pixel witnesses for editing operations (one per record).
+    /// Used by the guest to re-execute operations and verify hashes.
+    /// For non-re-executed operations, the witness may contain empty pixels.
+    pub image_witnesses: Vec<ImageWitness>,
     /// SHA-256 hash of the final edited image (None if no edits)
     pub edited_image_hash: Option<String>,
 }
@@ -84,6 +88,21 @@ pub struct EcdsaSignature {
     pub r: String,
     /// Signature s component (32 bytes, hex-encoded)
     pub s: String,
+}
+
+/// Raw pixel data witness for a single editing operation.
+///
+/// Contains the **input** image's raw RGBA pixel data for the
+/// corresponding editing operation. The ZKVM guest uses this to
+/// re-execute the operation and verify the output hash.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageWitness {
+    /// Raw RGBA pixel bytes (4 bytes per pixel, row-major order)
+    pub pixels: Vec<u8>,
+    /// Image width in pixels
+    pub width: u32,
+    /// Image height in pixels
+    pub height: u32,
 }
 
 /// A single editing operation record for the ZKVM.
@@ -179,6 +198,11 @@ mod tests {
                 input_hash: "aa".repeat(32),
                 output_hash: "bb".repeat(32),
             }],
+            image_witnesses: vec![ImageWitness {
+                pixels: vec![0u8; 100 * 80 * 4],
+                width: 100,
+                height: 80,
+            }],
             edited_image_hash: Some("bb".repeat(32)),
         };
 
@@ -186,6 +210,27 @@ mod tests {
         let parsed: CircuitInput = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.original_image_hash, input.original_image_hash);
         assert_eq!(parsed.editing_records.len(), 1);
+        assert_eq!(parsed.image_witnesses.len(), 1);
+        assert_eq!(parsed.image_witnesses[0].width, 100);
+        assert_eq!(parsed.image_witnesses[0].height, 80);
+        assert_eq!(parsed.image_witnesses[0].pixels.len(), 100 * 80 * 4);
         assert!(parsed.c2pa_data.as_ref().unwrap().ecdsa_signature.is_some());
+    }
+
+    #[test]
+    fn test_image_witness_serde_roundtrip() {
+        // 10x10 RGBA image = 400 bytes
+        let witness = ImageWitness {
+            pixels: (0..400).map(|i| (i % 256) as u8).collect(),
+            width: 10,
+            height: 10,
+        };
+
+        let json = serde_json::to_string(&witness).unwrap();
+        let parsed: ImageWitness = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.width, 10);
+        assert_eq!(parsed.height, 10);
+        assert_eq!(parsed.pixels.len(), 400);
+        assert_eq!(parsed.pixels, witness.pixels);
     }
 }

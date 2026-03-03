@@ -90,6 +90,9 @@ fn test_pico_crop() {
             }),
             input_hash: orig_hash,
             output_hash: edited_hash,
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }],
     };
 
@@ -136,6 +139,9 @@ fn test_pico_resize() {
             parameters: serde_json::json!({"width": 8, "height": 8}),
             input_hash: orig_hash,
             output_hash: edited_hash,
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }],
     };
 
@@ -181,6 +187,9 @@ fn test_pico_rotate() {
             parameters: serde_json::json!({"angle": 90}),
             input_hash: orig_hash,
             output_hash: edited_hash,
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }],
     };
 
@@ -254,18 +263,27 @@ fn test_pico_chain_crop_resize_rotate() {
                 }),
                 input_hash: orig_hash,
                 output_hash: cropped_hash.clone(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             },
             EditingRecordInput {
                 operation: EditOperation::Resize,
                 parameters: serde_json::json!({"width": 8, "height": 8}),
                 input_hash: cropped_hash,
                 output_hash: resized_hash.clone(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             },
             EditingRecordInput {
                 operation: EditOperation::Rotate,
                 parameters: serde_json::json!({"angle": 180}),
                 input_hash: resized_hash,
                 output_hash: rotated_hash,
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             },
         ],
     };
@@ -351,18 +369,27 @@ fn test_pico_real_image_edit_and_prove() {
                 }),
                 input_hash: orig_hash,
                 output_hash: cropped_hash.clone(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             },
             EditingRecordInput {
                 operation: EditOperation::Resize,
                 parameters: serde_json::json!({"width": 256, "height": 256}),
                 input_hash: cropped_hash,
                 output_hash: resized_hash.clone(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             },
             EditingRecordInput {
                 operation: EditOperation::Rotate,
                 parameters: serde_json::json!({"angle": 90}),
                 input_hash: resized_hash,
                 output_hash: rotated_hash,
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             },
         ],
     };

@@ -8,6 +8,62 @@ description = "End-to-end digital media authenticity attestation system"
 name = "brevis-vera"
 path = "src/main.rs"
 
+[[example]]
+name = "debug_signature"
+path = "examples/debug_signature.rs"
+
+[[example]]
+name = "debug_jumbf"
+path = "examples/debug_jumbf.rs"
+
+[[example]]
+name = "debug_compare"
+path = "examples/debug_compare.rs"
+
+[[example]]
+name = "debug_sig_fixed"
+path = "examples/debug_sig_fixed.rs"
+
+[[example]]
+name = "debug_chunks"
+path = "examples/debug_chunks.rs"
+
+[[example]]
+name = "debug_bounds"
+path = "examples/debug_bounds.rs"
+
+[[example]]
+name = "debug_exact"
+path = "examples/debug_exact.rs"
+
+[[example]]
+name = "debug_cbor"
+path = "examples/debug_cbor.rs"
+
+[[example]]
+name = "debug_uuid"
+path = "examples/debug_uuid.rs"
+
+[[example]]
+name = "debug_parse"
+path = "examples/debug_parse.rs"
+
+[[example]]
+name = "debug_pos"
+path = "examples/debug_pos.rs"
+
+[[example]]
+name = "debug_manual"
+path = "examples/debug_manual.rs"
+
+[[example]]
+name = "debug_tag"
+path = "examples/debug_tag.rs"
+
+[[example]]
+name = "debug_bytes"
+path = "examples/debug_bytes.rs"
+
 [features]
 default = ["pico"]
 ## Enable the Pico ZKVM prover backend for real STARK/SNARK proof generation.
@@ -24,6 +80,8 @@ hex = "0.4"
 der-parser = "9"
 num-bigint = "0.4"
 openssl = "0.10"
+coset = "0.3"
+ciborium = "0.2"
 photon-rs = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 image = "0.25"

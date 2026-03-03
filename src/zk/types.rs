@@ -43,6 +43,10 @@ pub struct EditingProofInput {
 ///
 /// Mirrors [`crate::editor::types::EditingRecord`] but uses
 /// typed parameters for circuit verification.
+///
+/// For crop operations, `raw_pixels`/`pixel_width`/`pixel_height`
+/// enable re-execution verification: the circuit re-applies the crop
+/// on the raw pixels and verifies the output hash matches.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EditingRecordInput {
     /// Type of editing operation
@@ -53,6 +57,16 @@ pub struct EditingRecordInput {
     pub input_hash: String,
     /// SHA-256 hash of the image after this operation
     pub output_hash: String,
+    /// Raw RGBA pixel data for the input image (optional).
+    /// When provided for crop operations, enables re-execution verification.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub raw_pixels: Option<Vec<u8>>,
+    /// Width of the raw pixel image (required when `raw_pixels` is set)
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub pixel_width: Option<u32>,
+    /// Height of the raw pixel image (required when `raw_pixels` is set)
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub pixel_height: Option<u32>,
 }
 
 /// Input for combined proof generation (C2PA + editing).
@@ -245,6 +259,9 @@ mod tests {
                 parameters: serde_json::json!({"x": 0, "y": 0, "width": 100, "height": 100}),
                 input_hash: "hash_in".to_string(),
                 output_hash: "hash_out".to_string(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             }],
             edited_image_hash: Some("hash_edited".to_string()),
         };
@@ -316,6 +333,9 @@ mod tests {
             parameters: serde_json::json!({"width": 200, "height": 150}),
             input_hash: "input".to_string(),
             output_hash: "output".to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         };
 
         let json = serde_json::to_value(&record).unwrap();

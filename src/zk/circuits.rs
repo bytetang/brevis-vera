@@ -21,7 +21,7 @@
 //! RISC-V and executed inside the ZKVM. The simulated prover runs them
 //! natively for development and testing.
 
-use crate::editor::types::EditOperation;
+use crate::editor::types::{EditOperation, sha256_hex};
 use crate::provenance::types::C2paVerificationData;
 
 use super::types::{
@@ -131,18 +131,18 @@ pub fn verify_c2pa_data(c2pa: &C2paVerificationData, image_hash: &str) -> C2paCi
 
 /// Verify a single crop operation.
 ///
-/// Validates that the crop parameters are internally consistent:
-/// - Width and height are non-zero
-/// - Input and output hashes are valid hex strings
-/// - Input and output hashes differ (crop changes the image)
+/// When `raw_pixels`, `pixel_width`, and `pixel_height` are provided,
+/// performs **full re-execution verification**:
+/// 1. SHA-256(raw_pixels) must equal `input_hash`
+/// 2. Extract the sub-rectangle defined by (x, y, width, height)
+/// 3. SHA-256(cropped_pixels) must equal `output_hash`
 ///
-/// # ZKVM Note
+/// This is the same logic that runs inside the ZKVM guest.
 ///
-/// In production, the circuit would:
-/// 1. Accept the original image as a private witness
-/// 2. Re-apply the crop operation
-/// 3. Hash the result and compare with the claimed output hash
-/// 4. Output only: "crop verified" (without revealing coordinates)
+/// When raw pixels are NOT provided (backward compat), falls back to
+/// parameter-only validation (non-zero dimensions, coordinates present,
+/// hashes differ). This is NOT a cryptographic proof — it only checks
+/// structural consistency.
 fn verify_crop(record: &EditingRecordInput) -> OperationVerifyResult {
     let params = &record.parameters;
 
@@ -170,15 +170,89 @@ fn verify_crop(record: &EditingRecordInput) -> OperationVerifyResult {
     }
 
     // x and y must be present
-    if params.get("x").and_then(|v| v.as_u64()).is_none()
-        || params.get("y").and_then(|v| v.as_u64()).is_none()
-    {
+    let x = params.get("x").and_then(|v| v.as_u64());
+    let y = params.get("y").and_then(|v| v.as_u64());
+    if x.is_none() || y.is_none() {
         return OperationVerifyResult {
             operation: EditOperation::Crop,
             valid: false,
             reason: Some("Missing x or y coordinate in crop parameters".to_string()),
         };
     }
+
+    let cx = x.unwrap() as u32;
+    let cy = y.unwrap() as u32;
+    let cw = w as u32;
+    let ch = h as u32;
+
+    // --- Re-execution path (when raw pixels are available) ---
+    if let (Some(raw_pixels), Some(pixel_w), Some(pixel_h)) =
+        (record.raw_pixels.as_ref(), record.pixel_width, record.pixel_height)
+    {
+        // Validate pixel data size
+        let expected_size = (pixel_w as usize) * (pixel_h as usize) * 4;
+        if raw_pixels.len() != expected_size {
+            return OperationVerifyResult {
+                operation: EditOperation::Crop,
+                valid: false,
+                reason: Some(format!(
+                    "Raw pixel data size mismatch: expected {} bytes ({}x{}x4), got {}",
+                    expected_size, pixel_w, pixel_h, raw_pixels.len()
+                )),
+            };
+        }
+
+        // Bounds checking
+        if cx + cw > pixel_w || cy + ch > pixel_h {
+            return OperationVerifyResult {
+                operation: EditOperation::Crop,
+                valid: false,
+                reason: Some(format!(
+                    "Crop region ({},{} {}x{}) exceeds image bounds ({}x{})",
+                    cx, cy, cw, ch, pixel_w, pixel_h
+                )),
+            };
+        }
+
+        // Step 1: Verify input hash = SHA-256(raw_pixels)
+        let computed_input_hash = sha256_hex(raw_pixels);
+        if computed_input_hash != record.input_hash {
+            return OperationVerifyResult {
+                operation: EditOperation::Crop,
+                valid: false,
+                reason: Some(format!(
+                    "Input hash mismatch: computed {} but record claims {}",
+                    computed_input_hash, record.input_hash
+                )),
+            };
+        }
+
+        // Step 2: Re-execute crop
+        let cropped = crop_pixels_raw(raw_pixels, pixel_w, cx, cy, cw, ch);
+
+        // Step 3: Verify output hash = SHA-256(cropped_pixels)
+        let computed_output_hash = sha256_hex(&cropped);
+        if computed_output_hash != record.output_hash {
+            return OperationVerifyResult {
+                operation: EditOperation::Crop,
+                valid: false,
+                reason: Some(format!(
+                    "Output hash mismatch after re-execution: computed {} but record claims {}",
+                    computed_output_hash, record.output_hash
+                )),
+            };
+        }
+
+        return OperationVerifyResult {
+            operation: EditOperation::Crop,
+            valid: true,
+            reason: None,
+        };
+    }
+
+    // --- Fallback: parameter-only validation (no raw pixels) ---
+    // NOTE: This does NOT prove the crop was applied correctly.
+    // It only checks structural consistency for backward compatibility.
 
     // Verify hash chain: input and output hashes must differ
     if record.input_hash == record.output_hash {
@@ -194,6 +268,27 @@ fn verify_crop(record: &EditingRecordInput) -> OperationVerifyResult {
         valid: true,
         reason: None,
     }
+}
+
+/// Extract a sub-rectangle from row-major RGBA pixel data.
+///
+/// This is the host-side equivalent of the ZKVM guest's `crop_pixels`
+/// function. Both must produce identical output for the same input.
+///
+/// For each row in `[y..y+h]`, copies bytes `[x*4..(x+w)*4]` from
+/// the source row into the output buffer.
+fn crop_pixels_raw(pixels: &[u8], img_w: u32, x: u32, y: u32, w: u32, h: u32) -> Vec<u8> {
+    let stride = (img_w as usize) * 4;
+    let crop_row_bytes = (w as usize) * 4;
+    let mut out = Vec::with_capacity((h as usize) * crop_row_bytes);
+
+    for row in y..(y + h) {
+        let row_start = (row as usize) * stride + (x as usize) * 4;
+        let row_end = row_start + crop_row_bytes;
+        out.extend_from_slice(&pixels[row_start..row_end]);
+    }
+
+    out
 }
 
 /// Verify a single resize operation.
@@ -482,6 +577,9 @@ mod tests {
             }),
             input_hash: input_hash.to_string(),
             output_hash: output_hash.to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }
     }
 
@@ -491,6 +589,9 @@ mod tests {
             parameters: serde_json::json!({"width": 200, "height": 150}),
             input_hash: input_hash.to_string(),
             output_hash: output_hash.to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }
     }
 
@@ -504,6 +605,9 @@ mod tests {
             parameters: serde_json::json!({"angle": angle}),
             input_hash: input_hash.to_string(),
             output_hash: output_hash.to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }
     }
 
@@ -584,6 +688,9 @@ mod tests {
             parameters: serde_json::json!({"x": 0, "y": 0, "height": 100}),
             input_hash: "a".to_string(),
             output_hash: "b".to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         };
         let result = verify_operation(&record);
         assert!(!result.valid);
@@ -597,6 +704,9 @@ mod tests {
             parameters: serde_json::json!({"x": 0, "y": 0, "width": 0, "height": 100}),
             input_hash: "a".to_string(),
             output_hash: "b".to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         };
         let result = verify_operation(&record);
         assert!(!result.valid);
@@ -618,6 +728,9 @@ mod tests {
             parameters: serde_json::json!({"width": 100, "height": 100}),
             input_hash: "a".to_string(),
             output_hash: "b".to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         };
         let result = verify_operation(&record);
         assert!(!result.valid);
@@ -640,6 +753,9 @@ mod tests {
             parameters: serde_json::json!({"width": 0, "height": 100}),
             input_hash: "a".to_string(),
             output_hash: "b".to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         };
         let result = verify_operation(&record);
         assert!(!result.valid);
@@ -699,6 +815,9 @@ mod tests {
             parameters: serde_json::json!({"x": 0, "y": 0, "width": 100, "height": 100}),
             input_hash: "".to_string(),
             output_hash: "b".to_string(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         };
         let result = verify_operation(&record);
         assert!(!result.valid);
@@ -844,5 +963,165 @@ mod tests {
         let (c2pa, editing) = verify_combined(&input);
         assert!(c2pa.unwrap().valid);
         assert!(editing.unwrap().valid);
+    }
+
+    // ---- Crop re-execution tests ----
+
+    /// Create a simple 4x4 RGBA test image (64 bytes).
+    /// Each pixel (r,g,b,a) encodes its position for easy verification.
+    fn make_test_pixels(w: u32, h: u32) -> Vec<u8> {
+        let mut pixels = Vec::with_capacity((w * h * 4) as usize);
+        for y in 0..h {
+            for x in 0..w {
+                pixels.push(x as u8);       // R
+                pixels.push(y as u8);       // G
+                pixels.push((x + y) as u8); // B
+                pixels.push(255);           // A
+            }
+        }
+        pixels
+    }
+
+    #[test]
+    fn test_crop_reexecution_valid() {
+        // Create a 4x4 image, crop to (1,1, 2x2)
+        let pixels = make_test_pixels(4, 4);
+        let input_hash = sha256_hex(&pixels);
+
+        let cropped = crop_pixels_raw(&pixels, 4, 1, 1, 2, 2);
+        let output_hash = sha256_hex(&cropped);
+
+        let record = EditingRecordInput {
+            operation: EditOperation::Crop,
+            parameters: serde_json::json!({
+                "x": 1, "y": 1, "width": 2, "height": 2,
+                "source_width": 4, "source_height": 4
+            }),
+            input_hash,
+            output_hash,
+            raw_pixels: Some(pixels),
+            pixel_width: Some(4),
+            pixel_height: Some(4),
+        };
+
+        let result = verify_operation(&record);
+        assert!(result.valid, "Expected valid but got: {:?}", result.reason);
+    }
+
+    #[test]
+    fn test_crop_reexecution_tampered_output_hash() {
+        let pixels = make_test_pixels(4, 4);
+        let input_hash = sha256_hex(&pixels);
+
+        let record = EditingRecordInput {
+            operation: EditOperation::Crop,
+            parameters: serde_json::json!({
+                "x": 1, "y": 1, "width": 2, "height": 2
+            }),
+            input_hash,
+            output_hash: "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+            raw_pixels: Some(pixels),
+            pixel_width: Some(4),
+            pixel_height: Some(4),
+        };
+
+        let result = verify_operation(&record);
+        assert!(!result.valid);
+        assert!(result.reason.as_ref().unwrap().contains("Output hash mismatch"));
+    }
+
+    #[test]
+    fn test_crop_reexecution_tampered_input_hash() {
+        let pixels = make_test_pixels(4, 4);
+        let cropped = crop_pixels_raw(&pixels, 4, 0, 0, 2, 2);
+        let output_hash = sha256_hex(&cropped);
+
+        let record = EditingRecordInput {
+            operation: EditOperation::Crop,
+            parameters: serde_json::json!({
+                "x": 0, "y": 0, "width": 2, "height": 2
+            }),
+            input_hash: "aaaa".to_string(), // wrong input hash
+            output_hash,
+            raw_pixels: Some(pixels),
+            pixel_width: Some(4),
+            pixel_height: Some(4),
+        };
+
+        let result = verify_operation(&record);
+        assert!(!result.valid);
+        assert!(result.reason.as_ref().unwrap().contains("Input hash mismatch"));
+    }
+
+    #[test]
+    fn test_crop_reexecution_out_of_bounds() {
+        let pixels = make_test_pixels(4, 4);
+        let input_hash = sha256_hex(&pixels);
+
+        let record = EditingRecordInput {
+            operation: EditOperation::Crop,
+            parameters: serde_json::json!({
+                "x": 3, "y": 3, "width": 2, "height": 2  // 3+2=5 > 4
+            }),
+            input_hash,
+            output_hash: "anything".to_string(),
+            raw_pixels: Some(pixels),
+            pixel_width: Some(4),
+            pixel_height: Some(4),
+        };
+
+        let result = verify_operation(&record);
+        assert!(!result.valid);
+        assert!(result.reason.as_ref().unwrap().contains("exceeds image bounds"));
+    }
+
+    #[test]
+    fn test_crop_reexecution_pixel_size_mismatch() {
+        // Provide pixel data that doesn't match declared dimensions
+        let pixels = vec![0u8; 32]; // too small for 4x4
+        let input_hash = sha256_hex(&pixels);
+
+        let record = EditingRecordInput {
+            operation: EditOperation::Crop,
+            parameters: serde_json::json!({
+                "x": 0, "y": 0, "width": 2, "height": 2
+            }),
+            input_hash,
+            output_hash: "anything".to_string(),
+            raw_pixels: Some(pixels),
+            pixel_width: Some(4),
+            pixel_height: Some(4),
+        };
+
+        let result = verify_operation(&record);
+        assert!(!result.valid);
+        assert!(result.reason.as_ref().unwrap().contains("size mismatch"));
+    }
+
+    #[test]
+    fn test_crop_pixels_raw_correctness() {
+        // 3x3 image, crop (1,1, 2x2)
+        let pixels = make_test_pixels(3, 3);
+        let cropped = crop_pixels_raw(&pixels, 3, 1, 1, 2, 2);
+
+        // Expected: 2x2 = 16 bytes
+        assert_eq!(cropped.len(), 16);
+
+        // Pixel at (1,1) in original: R=1, G=1, B=2, A=255
+        assert_eq!(&cropped[0..4], &[1, 1, 2, 255]);
+        // Pixel at (2,1) in original: R=2, G=1, B=3, A=255
+        assert_eq!(&cropped[4..8], &[2, 1, 3, 255]);
+        // Pixel at (1,2) in original: R=1, G=2, B=3, A=255
+        assert_eq!(&cropped[8..12], &[1, 2, 3, 255]);
+        // Pixel at (2,2) in original: R=2, G=2, B=4, A=255
+        assert_eq!(&cropped[12..16], &[2, 2, 4, 255]);
+    }
+
+    #[test]
+    fn test_crop_fallback_without_pixels() {
+        // Without raw_pixels, should use parameter-only validation (backward compat)
+        let record = make_crop_record("hash_a", "hash_b");
+        let result = verify_operation(&record);
+        assert!(result.valid, "Fallback path should still pass for valid params");
     }
 }

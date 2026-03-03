@@ -31,12 +31,15 @@ use super::types::{
 /// * [`EditorError::DecodeError`] if the image cannot be decoded
 /// * [`EditorError::CropOutOfBounds`] if the crop region exceeds image bounds
 pub fn crop(image_bytes: &[u8], params: &CropParams) -> Result<EditResult, EditorError> {
-    let original_hash = sha256_hex(image_bytes);
-
     let mut img = PhotonImage::new_from_byteslice(image_bytes.to_vec());
 
     let img_w = img.get_width();
     let img_h = img.get_height();
+
+    // Hash the raw RGBA pixels (not the encoded PNG/JPEG bytes)
+    // so that the ZKVM guest can reproduce the same hash from raw pixels.
+    let original_raw_pixels = img.get_raw_pixels();
+    let original_hash = sha256_hex(&original_raw_pixels);
 
     // Validate crop bounds
     if params.x + params.width > img_w || params.y + params.height > img_h {
@@ -69,8 +72,11 @@ pub fn crop(image_bytes: &[u8], params: &CropParams) -> Result<EditResult, Edito
         params.y + params.height,
     );
 
+    // Hash the cropped raw RGBA pixels (matching what the ZKVM will compute)
+    let cropped_raw_pixels = cropped.get_raw_pixels();
+    let edited_hash = sha256_hex(&cropped_raw_pixels);
+
     let out_bytes = cropped.get_bytes();
-    let edited_hash = sha256_hex(&out_bytes);
 
     Ok(EditResult {
         width: cropped.get_width(),
@@ -83,6 +89,8 @@ pub fn crop(image_bytes: &[u8], params: &CropParams) -> Result<EditResult, Edito
                 "y": params.y,
                 "width": params.width,
                 "height": params.height,
+                "source_width": img_w,
+                "source_height": img_h,
             }),
             original_image_hash: original_hash,
             edited_image_hash: edited_hash,
@@ -196,6 +204,18 @@ fn encode_png(img: &DynamicImage) -> Result<Vec<u8>, EditorError> {
     Ok(buf.into_inner())
 }
 
+/// Extract raw RGBA pixel bytes from encoded image bytes (PNG/JPEG).
+///
+/// Returns `(pixels, width, height)` where `pixels` is a `Vec<u8>` of
+/// raw RGBA data (4 bytes per pixel, row-major order).
+///
+/// This is the canonical pixel representation used for ZK proof hashing.
+/// Both the editor and ZKVM guest use this format.
+pub fn extract_raw_rgba(image_bytes: &[u8]) -> Result<(Vec<u8>, u32, u32), EditorError> {
+    let img = PhotonImage::new_from_byteslice(image_bytes.to_vec());
+    Ok((img.get_raw_pixels(), img.get_width(), img.get_height()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,6 +246,37 @@ mod tests {
         assert!(!result.record.original_image_hash.is_empty());
         assert!(!result.record.edited_image_hash.is_empty());
         assert_ne!(result.record.original_image_hash, result.record.edited_image_hash);
+
+        // Verify source dimensions are in parameters
+        let p = &result.record.parameters;
+        assert_eq!(p["source_width"], 100);
+        assert_eq!(p["source_height"], 80);
+    }
+
+    #[test]
+    fn test_crop_hashes_use_raw_pixels() {
+        let png = test_png(100, 80);
+        let params = CropParams {
+            x: 0,
+            y: 0,
+            width: 50,
+            height: 40,
+        };
+        let result = crop(&png, &params).unwrap();
+
+        // Verify that original hash matches SHA-256 of raw RGBA pixels
+        let (raw_pixels, w, h) = extract_raw_rgba(&png).unwrap();
+        assert_eq!(w, 100);
+        assert_eq!(h, 80);
+        let expected_original_hash = sha256_hex(&raw_pixels);
+        assert_eq!(result.record.original_image_hash, expected_original_hash);
+
+        // Verify that edited hash matches SHA-256 of cropped raw RGBA pixels
+        // (not the PNG-encoded bytes)
+        let cropped_img = PhotonImage::new_from_byteslice(result.image_bytes.clone());
+        let cropped_raw = cropped_img.get_raw_pixels();
+        let expected_edited_hash = sha256_hex(&cropped_raw);
+        assert_eq!(result.record.edited_image_hash, expected_edited_hash);
     }
 
     #[test]

@@ -40,9 +40,11 @@
 
 use alloy_sol_types::SolValue;
 use brevis_vera_zk_lib::{
-    CircuitInput, EcdsaSignature, EditingRecordData, OperationParams, PublicValuesStruct,
+    CircuitInput, EcdsaSignature, EditingRecordData, ImageWitness, OperationParams,
+    PublicValuesStruct,
 };
 use pico_sdk::io::{commit_bytes, read_as};
+use sha2::{Digest, Sha256};
 
 pico_sdk::entrypoint!(main);
 
@@ -80,6 +82,7 @@ pub fn main() {
             &input.original_image_hash,
             input.edited_image_hash.as_deref().unwrap_or(""),
             &input.editing_records,
+            &input.image_witnesses,
         )
     } else {
         (false, 0u32)
@@ -188,18 +191,22 @@ fn verify_ecdsa_p256(signature: &EcdsaSignature, public_key: &str, message_hash:
 // Editing verification logic
 // ---------------------------------------------------------------------------
 
-/// Verify the editing operations form a valid hash chain.
+/// Verify the editing operations form a valid hash chain,
+/// with crop re-execution using raw pixel witnesses.
 ///
-/// Checks:
-/// 1. First operation's input_hash == original_image_hash
-/// 2. Each operation has valid parameters
-/// 3. output_hash of op N == input_hash of op N+1
-/// 4. Last operation's output_hash == edited_image_hash
-/// 5. Input and output hashes differ for each operation
+/// For crop operations:
+/// 1. Verify SHA-256(witness pixels) == input_hash
+/// 2. Validate crop bounds against witness dimensions
+/// 3. Re-execute crop by extracting sub-rectangle from raw pixels
+/// 4. Verify SHA-256(cropped pixels) == output_hash
+///
+/// For non-crop operations (resize, rotate):
+/// Parameter-only validation (no re-execution witness required).
 fn verify_editing(
     original_hash: &str,
     edited_hash: &str,
     records: &[EditingRecordData],
+    witnesses: &[ImageWitness],
 ) -> (bool, u32) {
     if records.is_empty() {
         return (false, 0);
@@ -220,9 +227,31 @@ fn verify_editing(
             return (false, 0);
         }
 
-        // Validate operation-specific parameters
-        if !verify_operation_params(record) {
-            return (false, 0);
+        // Validate and verify based on operation type
+        match &record.params {
+            OperationParams::Crop { x, y, width, height } => {
+                // Crop requires a witness for re-execution
+                if i >= witnesses.len() {
+                    return (false, 0);
+                }
+                let witness = &witnesses[i];
+
+                if !verify_crop_with_witness(record, witness, *x, *y, *width, *height) {
+                    return (false, 0);
+                }
+            }
+            OperationParams::Resize { width, height } => {
+                // Parameter-only validation for resize
+                if *width == 0 || *height == 0 {
+                    return (false, 0);
+                }
+            }
+            OperationParams::Rotate { angle } => {
+                // Parameter-only validation for rotate
+                if *angle != 90 && *angle != 180 && *angle != 270 {
+                    return (false, 0);
+                }
+            }
         }
 
         // Check hash chain continuity
@@ -240,7 +269,76 @@ fn verify_editing(
     (true, num_records)
 }
 
-/// Validate operation-specific parameters.
+/// Verify a crop operation by re-executing it on the witness pixels.
+///
+/// 1. Validates crop bounds: x+w <= img_w, y+h <= img_h, w>0, h>0
+/// 2. Verifies SHA-256(witness.pixels) == record.input_hash
+/// 3. Extracts sub-rectangle from raw RGBA pixels
+/// 4. Verifies SHA-256(cropped_pixels) == record.output_hash
+fn verify_crop_with_witness(
+    record: &EditingRecordData,
+    witness: &ImageWitness,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> bool {
+    // Validate dimensions
+    if width == 0 || height == 0 {
+        return false;
+    }
+
+    let img_w = witness.width;
+    let img_h = witness.height;
+
+    // Bounds checking
+    if x + width > img_w || y + height > img_h {
+        return false;
+    }
+
+    // Validate witness pixel data size matches declared dimensions
+    let expected_size = (img_w as usize) * (img_h as usize) * 4;
+    if witness.pixels.len() != expected_size {
+        return false;
+    }
+
+    // Step 1: Verify input hash matches SHA-256 of witness pixels
+    let input_hash_computed = sha256_hex_bytes(&witness.pixels);
+    if input_hash_computed != record.input_hash {
+        return false;
+    }
+
+    // Step 2: Re-execute crop — extract sub-rectangle from raw RGBA pixels
+    let cropped = crop_pixels(&witness.pixels, img_w, x, y, width, height);
+
+    // Step 3: Verify output hash matches SHA-256 of cropped pixels
+    let output_hash_computed = sha256_hex_bytes(&cropped);
+    if output_hash_computed != record.output_hash {
+        return false;
+    }
+
+    true
+}
+
+/// Extract a sub-rectangle from row-major RGBA pixel data.
+///
+/// For each row in `[y..y+h]`, copies bytes `[x*4..(x+w)*4]` from
+/// the source row into the output buffer.
+fn crop_pixels(pixels: &[u8], img_w: u32, x: u32, y: u32, w: u32, h: u32) -> Vec<u8> {
+    let stride = (img_w as usize) * 4;
+    let crop_row_bytes = (w as usize) * 4;
+    let mut out = Vec::with_capacity((h as usize) * crop_row_bytes);
+
+    for row in y..(y + h) {
+        let row_start = (row as usize) * stride + (x as usize) * 4;
+        let row_end = row_start + crop_row_bytes;
+        out.extend_from_slice(&pixels[row_start..row_end]);
+    }
+
+    out
+}
+
+/// Validate operation-specific parameters (for non-crop operations).
 fn verify_operation_params(record: &EditingRecordData) -> bool {
     match &record.params {
         OperationParams::Crop {
@@ -258,6 +356,19 @@ fn verify_operation_params(record: &EditingRecordData) -> bool {
             *angle == 90 || *angle == 180 || *angle == 270
         }
     }
+}
+
+/// Compute SHA-256 hash and return as hex string.
+fn sha256_hex_bytes(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    // Convert to hex string
+    let mut hex = String::with_capacity(64);
+    for byte in result.iter() {
+        hex.push_str(&format!("{:02x}", byte));
+    }
+    hex
 }
 
 // ---------------------------------------------------------------------------

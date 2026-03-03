@@ -111,6 +111,9 @@ fn test_editing_proof_with_real_crop() {
             }),
             input_hash: orig_hash,
             output_hash: edited_hash,
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }],
     };
 
@@ -162,12 +165,18 @@ fn test_editing_proof_chain_crop_then_resize() {
                 }),
                 input_hash: orig_hash,
                 output_hash: cropped_hash.clone(),
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             },
             EditingRecordInput {
                 operation: EditOperation::Resize,
                 parameters: serde_json::json!({"width": 100, "height": 100}),
                 input_hash: cropped_hash,
                 output_hash: resized_hash,
+                raw_pixels: None,
+                pixel_width: None,
+                pixel_height: None,
             },
         ],
     };
@@ -221,6 +230,9 @@ fn test_combined_proof_with_test_image() {
             }),
             input_hash: orig_hash,
             output_hash: edited_hash.clone(),
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }],
         edited_image_hash: Some(edited_hash),
     };
@@ -290,6 +302,9 @@ fn test_proof_json_roundtrip_integration() {
             parameters: serde_json::json!({"x": 0, "y": 0, "width": 50, "height": 50}),
             input_hash: orig_hash,
             output_hash: edited_hash,
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }],
     };
 
@@ -343,12 +358,18 @@ fn test_proof_generation_benchmark() {
                     parameters: serde_json::json!({"x": 0, "y": 0, "width": 100, "height": 100}),
                     input_hash: "abcdef1234567890".to_string(),
                     output_hash: "crop_output_hash".to_string(),
+                    raw_pixels: None,
+                    pixel_width: None,
+                    pixel_height: None,
                 },
                 EditingRecordInput {
                     operation: EditOperation::Resize,
                     parameters: serde_json::json!({"width": 50, "height": 50}),
                     input_hash: "crop_output_hash".to_string(),
                     output_hash: "final_hash".to_string(),
+                    raw_pixels: None,
+                    pixel_width: None,
+                    pixel_height: None,
                 },
             ],
             edited_image_hash: Some("final_hash".to_string()),
@@ -395,6 +416,9 @@ fn test_tamper_detection() {
             parameters: serde_json::json!({"x": 10, "y": 10, "width": 50, "height": 50}),
             input_hash: orig_hash,
             output_hash: edited_hash,
+            raw_pixels: None,
+            pixel_width: None,
+            pixel_height: None,
         }],
     };
 
