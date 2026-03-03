@@ -365,6 +365,12 @@ const C2PA_SIGNATURE_UUID: [u8; 16] = [
     0x00, 0x11, 0x00, 0x10, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71,
 ];
 
+/// UUID for the C2PA claim box ("c2cl").
+const C2PA_CLAIM_UUID: [u8; 16] = [
+    0x63, 0x32, 0x63, 0x6C, // "c2cl"
+    0x00, 0x11, 0x00, 0x10, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71,
+];
+
 /// Walk the JUMBF box tree and return the CBOR payload of the `c2pa.signature` box.
 fn find_signature_cbor_in_jumbf(jumbf_data: &[u8]) -> Option<Vec<u8>> {
     let boxes: Vec<JumbfBox<'_>> = parse_boxes(jumbf_data);
@@ -401,6 +407,51 @@ fn find_signature_cbor_recursive(boxes: &[JumbfBox<'_>]) -> Option<Vec<u8>> {
         }
     }
     None
+}
+
+/// Walk the JUMBF box tree and return the CBOR payload of the `c2pa.claim` box.
+fn find_claim_cbor_in_jumbf(jumbf_data: &[u8]) -> Option<Vec<u8>> {
+    let boxes = parse_boxes(jumbf_data);
+    find_claim_cbor_recursive(&boxes)
+}
+
+fn find_claim_cbor_recursive(boxes: &[JumbfBox<'_>]) -> Option<Vec<u8>> {
+    for b in boxes {
+        if &b.box_type == b"jumb" {
+            let children = parse_boxes(b.payload);
+
+            if is_claim_superbox(&children) {
+                for child in &children {
+                    if &child.box_type == b"cbor" {
+                        return Some(child.payload.to_vec());
+                    }
+                }
+            }
+
+            if let Some(result) = find_claim_cbor_recursive(&children) {
+                return Some(result);
+            }
+        }
+    }
+    None
+}
+
+/// Check whether a superbox's children indicate it is the `c2pa.claim` box.
+fn is_claim_superbox(children: &[JumbfBox<'_>]) -> bool {
+    let desc = match children.first() {
+        Some(b) if &b.box_type == b"jumd" => b,
+        _ => return false,
+    };
+    if desc.payload.len() < 16 {
+        return false;
+    }
+    if desc.payload[..16] == C2PA_CLAIM_UUID {
+        return true;
+    }
+    let needle = b"c2pa.claim";
+    desc.payload
+        .windows(needle.len())
+        .any(|w| w == needle.as_slice())
 }
 
 /// Check whether a superbox's children indicate it is the `c2pa.signature` box.
@@ -615,5 +666,125 @@ mod tests {
 
         // Should have a claim generator
         assert!(!metadata.claim_generator.is_empty());
+    }
+
+    #[test]
+    fn test_verify_ecdsa_signature() {
+        // Sign a test image, then verify the extracted (r, s) and public key
+        // are correct by performing ECDSA P-256 verification.
+        use coset::{CborSerializable, TaggedCborSerializable};
+
+        let src_path = test_image_path();
+        if !src_path.exists() {
+            eprintln!("Skipping: test image not found");
+            return;
+        }
+
+        let cert_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("certs");
+        let cert_path = cert_dir.join("ec_cert.pem");
+        let key_path = cert_dir.join("ec_key.pem");
+        if !cert_path.exists() || !key_path.exists() {
+            eprintln!("Skipping: test certs not found");
+            return;
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest_path = dir.path().join("signed.JPG");
+
+        // Sign
+        let manifest_json = r#"{
+            "claim_generator": "BrevisVera/VerifyTest/1.0",
+            "assertions": [{
+                "label": "c2pa.actions",
+                "data": {"actions": [{"action": "c2pa.created"}]}
+            }]
+        }"#;
+        let signer = c2pa::create_signer::from_files(
+            &cert_path,
+            &key_path,
+            c2pa::SigningAlg::Es256,
+            None,
+        )
+        .expect("create signer");
+        let mut builder = c2pa::Builder::from_json(manifest_json).unwrap();
+        builder
+            .sign_file(&*signer, &src_path, &dest_path)
+            .expect("sign file");
+
+        // --- Extract raw components from the file ---
+        let file_bytes = std::fs::read(&dest_path).unwrap();
+        let jumbf_data =
+            extract_jumbf_from_jpeg(&file_bytes).expect("should find JUMBF in signed JPEG");
+
+        // 1. Extract COSE_Sign1 from the signature box
+        let cose_cbor =
+            find_signature_cbor_in_jumbf(&jumbf_data).expect("should find COSE_Sign1 CBOR");
+        let sign1 = coset::CoseSign1::from_tagged_slice(&cose_cbor)
+            .or_else(|_| coset::CoseSign1::from_slice(&cose_cbor))
+            .expect("should parse COSE_Sign1");
+
+        // 2. Extract claim CBOR (the detached payload)
+        let claim_cbor =
+            find_claim_cbor_in_jumbf(&jumbf_data).expect("should find claim CBOR");
+
+        // 3. Extract signature (r, s) — P1363 format
+        let sig_bytes = &sign1.signature;
+        assert_eq!(sig_bytes.len(), 64, "ES256 signature should be 64 bytes");
+        let r_bytes = &sig_bytes[..32];
+        let s_bytes = &sig_bytes[32..];
+
+        // 4. Reconstruct the COSE Sig_structure1 to-be-signed data:
+        //    ["Signature1", bstr(protected), bstr(external_aad), bstr(payload)]
+        let protected_bytes = sign1
+            .protected
+            .original_data
+            .as_deref()
+            .unwrap_or(&[]);
+        let sig_structure = ciborium::Value::Array(vec![
+            ciborium::Value::Text("Signature1".to_string()),
+            ciborium::Value::Bytes(protected_bytes.to_vec()),
+            ciborium::Value::Bytes(vec![]), // external_aad
+            ciborium::Value::Bytes(claim_cbor),
+        ]);
+        let mut tbs_data = Vec::new();
+        ciborium::into_writer(&sig_structure, &mut tbs_data).unwrap();
+
+        // 5. Extract public key from our parser
+        let metadata = parse_c2pa(&dest_path)
+            .unwrap()
+            .expect("should have C2PA metadata");
+        let sig_info = metadata.signature_info.as_ref().unwrap();
+        let pub_key_hex = sig_info.public_key.as_ref().expect("should have public key");
+        let pub_key_bytes = hex::decode(pub_key_hex).unwrap();
+
+        // 6. Verify ECDSA P-256 signature using OpenSSL
+        let group =
+            openssl::ec::EcGroup::from_curve_name(openssl::nid::Nid::X9_62_PRIME256V1).unwrap();
+        let mut ctx = openssl::bn::BigNumContext::new().unwrap();
+        let point =
+            openssl::ec::EcPoint::from_bytes(&group, &pub_key_bytes, &mut ctx).unwrap();
+        let ec_key = openssl::ec::EcKey::from_public_key(&group, &point).unwrap();
+        let pkey = openssl::pkey::PKey::from_ec_key(ec_key).unwrap();
+
+        // Convert (r, s) to DER for OpenSSL
+        let r_bn = openssl::bn::BigNum::from_slice(r_bytes).unwrap();
+        let s_bn = openssl::bn::BigNum::from_slice(s_bytes).unwrap();
+        let ecdsa_sig =
+            openssl::ecdsa::EcdsaSig::from_private_components(r_bn, s_bn).unwrap();
+        let der_sig = ecdsa_sig.to_der().unwrap();
+
+        // Verify: OpenSSL ECDSA verify hashes the tbs_data with SHA-256 internally
+        let mut verifier =
+            openssl::sign::Verifier::new(openssl::hash::MessageDigest::sha256(), &pkey)
+                .unwrap();
+        verifier.update(&tbs_data).unwrap();
+        let valid = verifier.verify(&der_sig).unwrap();
+
+        assert!(valid, "ECDSA P-256 signature verification FAILED — extracted (r, s) or public key is incorrect");
+        eprintln!("ECDSA P-256 signature verification PASSED");
+        eprintln!("  r: {}", hex::encode(r_bytes));
+        eprintln!("  s: {}", hex::encode(s_bytes));
+        eprintln!("  public_key: {}", pub_key_hex);
+        eprintln!("  tbs_data len: {} bytes", tbs_data.len());
     }
 }
