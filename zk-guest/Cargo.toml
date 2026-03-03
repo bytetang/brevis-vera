@@ -1,3 +1,0 @@
-[workspace]
-members = ["lib", "app"]
-resolver = "2"

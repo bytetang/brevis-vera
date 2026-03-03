@@ -1,0 +1,7 @@
+[package]
+name = "pico-aot-chunk-019"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pico-aot-runtime = { git = "https://github.com/brevis-network/pico" }

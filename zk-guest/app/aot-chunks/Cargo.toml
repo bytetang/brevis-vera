@@ -1,0 +1,48 @@
+[package]
+name = "brevis-vera-aot-dispatch"
+version = "0.1.0"
+edition = "2021"
+
+[package.metadata.infinite]
+aot = true
+
+[features]
+default = []
+pico = []
+
+[dependencies]
+pico-aot-runtime = { git = "https://github.com/brevis-network/pico" }
+pico-aot-chunk-000 = { path = "chunks/chunk_000" }
+pico-aot-chunk-001 = { path = "chunks/chunk_001" }
+pico-aot-chunk-002 = { path = "chunks/chunk_002" }
+pico-aot-chunk-003 = { path = "chunks/chunk_003" }
+pico-aot-chunk-004 = { path = "chunks/chunk_004" }
+pico-aot-chunk-005 = { path = "chunks/chunk_005" }
+pico-aot-chunk-006 = { path = "chunks/chunk_006" }
+pico-aot-chunk-007 = { path = "chunks/chunk_007" }
+pico-aot-chunk-008 = { path = "chunks/chunk_008" }
+pico-aot-chunk-009 = { path = "chunks/chunk_009" }
+pico-aot-chunk-010 = { path = "chunks/chunk_010" }
+pico-aot-chunk-011 = { path = "chunks/chunk_011" }
+pico-aot-chunk-012 = { path = "chunks/chunk_012" }
+pico-aot-chunk-013 = { path = "chunks/chunk_013" }
+pico-aot-chunk-014 = { path = "chunks/chunk_014" }
+pico-aot-chunk-015 = { path = "chunks/chunk_015" }
+pico-aot-chunk-016 = { path = "chunks/chunk_016" }
+pico-aot-chunk-017 = { path = "chunks/chunk_017" }
+pico-aot-chunk-018 = { path = "chunks/chunk_018" }
+pico-aot-chunk-019 = { path = "chunks/chunk_019" }
+pico-aot-chunk-020 = { path = "chunks/chunk_020" }
+pico-aot-chunk-021 = { path = "chunks/chunk_021" }
+pico-aot-chunk-022 = { path = "chunks/chunk_022" }
+pico-aot-chunk-023 = { path = "chunks/chunk_023" }
+pico-aot-chunk-024 = { path = "chunks/chunk_024" }
+pico-aot-chunk-025 = { path = "chunks/chunk_025" }
+pico-aot-chunk-026 = { path = "chunks/chunk_026" }
+pico-aot-chunk-027 = { path = "chunks/chunk_027" }
+pico-aot-chunk-028 = { path = "chunks/chunk_028" }
+pico-aot-chunk-029 = { path = "chunks/chunk_029" }
+pico-aot-chunk-030 = { path = "chunks/chunk_030" }
+pico-aot-chunk-031 = { path = "chunks/chunk_031" }
+pico-aot-chunk-032 = { path = "chunks/chunk_032" }
+pico-aot-chunk-033 = { path = "chunks/chunk_033" }

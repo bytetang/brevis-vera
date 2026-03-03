@@ -253,7 +253,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -264,7 +264,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -297,6 +297,50 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "ark-bls12-381"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3df4dcc01ff89867cd86b0da835f23c3f02738353aaee7dde7495af71363b8d5"
+dependencies = [
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+]
+
+[[package]]
+name = "ark-bn254"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d69eab57e8d2663efa5c63135b2af4f396d66424f88954c21104125ab6b3e6bc"
+dependencies = [
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "ark-std 0.5.0",
+]
+
+[[package]]
+name = "ark-ec"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43d68f2d516162846c1238e755a7c4d131b892b70cc70c471a8e3ca3ed818fce"
+dependencies = [
+ "ahash",
+ "ark-ff 0.5.0",
+ "ark-poly",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "educe",
+ "fnv",
+ "hashbrown 0.15.5",
+ "itertools 0.13.0",
+ "num-bigint 0.4.6",
+ "num-integer",
+ "num-traits",
+ "zeroize",
 ]
 
 [[package]]
@@ -426,6 +470,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-poly"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "579305839da207f02b89cd1679e50e67b4331e2f9294a57693e5051b7703fe27"
+dependencies = [
+ "ahash",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "educe",
+ "fnv",
+ "hashbrown 0.15.5",
+]
+
+[[package]]
+name = "ark-secp256k1"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8bd211c48debd3037b48873a7aa22c3aba034e83388aa4124795c9f220b88c7"
+dependencies = [
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "ark-std 0.5.0",
+]
+
+[[package]]
 name = "ark-serialize"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -452,10 +522,22 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f4d068aaf107ebcd7dfb52bc748f8030e0fc930ac8e360146ca54c1203088f7"
 dependencies = [
+ "ark-serialize-derive",
  "ark-std 0.5.0",
  "arrayvec",
  "digest 0.10.7",
  "num-bigint 0.4.6",
+]
+
+[[package]]
+name = "ark-serialize-derive"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "213888f660fddcca0d257e88e54ac05bca01885f258ccdf695bafd77031bb69d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -939,6 +1021,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bincode",
+ "brevis-vera-aot-dispatch",
  "brevis-vera-zk-lib",
  "c2pa",
  "chrono",
@@ -966,6 +1049,58 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "brevis-vera-aot-dispatch"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-chunk-000",
+ "pico-aot-chunk-001",
+ "pico-aot-chunk-002",
+ "pico-aot-chunk-003",
+ "pico-aot-chunk-004",
+ "pico-aot-chunk-005",
+ "pico-aot-chunk-006",
+ "pico-aot-chunk-007",
+ "pico-aot-chunk-008",
+ "pico-aot-chunk-009",
+ "pico-aot-chunk-010",
+ "pico-aot-chunk-011",
+ "pico-aot-chunk-012",
+ "pico-aot-chunk-013",
+ "pico-aot-chunk-014",
+ "pico-aot-chunk-015",
+ "pico-aot-chunk-016",
+ "pico-aot-chunk-017",
+ "pico-aot-chunk-018",
+ "pico-aot-chunk-019",
+ "pico-aot-chunk-020",
+ "pico-aot-chunk-021",
+ "pico-aot-chunk-022",
+ "pico-aot-chunk-023",
+ "pico-aot-chunk-024",
+ "pico-aot-chunk-025",
+ "pico-aot-chunk-026",
+ "pico-aot-chunk-027",
+ "pico-aot-chunk-028",
+ "pico-aot-chunk-029",
+ "pico-aot-chunk-030",
+ "pico-aot-chunk-031",
+ "pico-aot-chunk-032",
+ "pico-aot-chunk-033",
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "brevis-vera-zk-app"
+version = "0.1.0"
+dependencies = [
+ "alloy-sol-types",
+ "brevis-vera-zk-lib",
+ "pico-sdk",
+ "serde",
+ "sha2",
 ]
 
 [[package]]
@@ -1260,9 +1395,9 @@ dependencies = [
 
 [[package]]
 name = "const-hex"
-version = "1.18.0"
+version = "1.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af9a108e542ddf1de36743a6126e94d6659dccda38fc8a77e80b915102ac784a"
+checksum = "531185e432bb31db1ecda541e9e7ab21468d4d844ad7505e0546a49b4945d49b"
 dependencies = [
  "cfg-if 1.0.4",
  "cpufeatures",
@@ -1489,9 +1624,9 @@ dependencies = [
 
 [[package]]
 name = "crypto-common"
-version = "0.1.7"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
+checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
 dependencies = [
  "generic-array",
  "typenum",
@@ -2005,7 +2140,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2325,9 +2460,9 @@ checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
 
 [[package]]
 name = "generic-array"
-version = "0.14.7"
+version = "0.14.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
+checksum = "4bb6743198531e02858aeaea5398fcc883e71851fcbcb5a2f773e2fb6cb1edf2"
 dependencies = [
  "typenum",
  "version_check",
@@ -2539,6 +2674,7 @@ version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
+ "allocator-api2",
  "foldhash",
  "serde",
 ]
@@ -3438,7 +3574,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4377,6 +4513,273 @@ dependencies = [
  "time",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "pico-aot-chunk-000"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-001"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-002"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-003"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-004"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-005"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-006"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-007"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-008"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-009"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-010"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-011"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-012"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-013"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-014"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-015"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-016"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-017"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-018"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-019"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-020"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-021"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-022"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-023"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-024"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-025"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-026"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-027"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-028"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-029"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-030"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-031"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-032"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-033"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-runtime"
+version = "1.2.2"
+source = "git+https://github.com/brevis-network/pico#f8617c9c4b540cf31f8b07f6144c93d04799f0f4"
+dependencies = [
+ "ark-bls12-381",
+ "ark-bn254",
+ "ark-ff 0.5.0",
+ "ark-secp256k1",
+ "bls12_381",
+ "curve25519-dalek",
+ "halo2curves",
+ "hashbrown 0.14.5",
+ "hybrid-array",
+ "k256",
+ "log",
+ "num",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "once_cell",
+ "p256",
+ "p3-field",
+ "p3-koala-bear",
+ "p3-symmetric",
+ "pico-vm",
+ "tiny-keccak",
+ "typenum",
 ]
 
 [[package]]
@@ -5332,7 +5735,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5994,7 +6397,7 @@ dependencies = [
  "getrandom 0.4.1",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6140,9 +6543,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
+checksum = "5c55a2eff8b69ce66c84f85e1da1c233edc36ceb85a2058d11b0d6a3c7e7569c"
 dependencies = [
  "proc-macro2",
  "quote",

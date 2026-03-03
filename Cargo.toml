@@ -1,73 +1,49 @@
+[workspace]
+members = [".", "zk-guest/lib", "zk-guest/app", "zk-guest/app/aot-chunks"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+keywords = ["pico", "zkvm", "aot", "brevis"]
+categories = ["cryptography"]
+
+[workspace.dependencies]
+# Pico dependencies
+pico-vm = { git = "https://github.com/brevis-network/pico" }
+hashbrown = "0.14"
+p3-koala-bear = "0.2"
+log = "0.4"
+tiny-keccak = "2.0"
+num-bigint = "0.4"
+num-traits = "0.2"
+p3-field = "0.2"
+p3-symmetric = "0.2"
+typenum = "1.17"
+hybrid-array = "0.2"
+num = "0.4"
+k256 = "0.13"
+p256 = "0.13"
+once_cell = "1.19"
+halo2curves = "0.2"
+bls12_381 = "0.9"
+curve25519-dalek = "4.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
 [package]
 name = "brevis-vera"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "End-to-end digital media authenticity attestation system"
 
 [[bin]]
 name = "brevis-vera"
 path = "src/main.rs"
 
-[[example]]
-name = "debug_signature"
-path = "examples/debug_signature.rs"
-
-[[example]]
-name = "debug_jumbf"
-path = "examples/debug_jumbf.rs"
-
-[[example]]
-name = "debug_compare"
-path = "examples/debug_compare.rs"
-
-[[example]]
-name = "debug_sig_fixed"
-path = "examples/debug_sig_fixed.rs"
-
-[[example]]
-name = "debug_chunks"
-path = "examples/debug_chunks.rs"
-
-[[example]]
-name = "debug_bounds"
-path = "examples/debug_bounds.rs"
-
-[[example]]
-name = "debug_exact"
-path = "examples/debug_exact.rs"
-
-[[example]]
-name = "debug_cbor"
-path = "examples/debug_cbor.rs"
-
-[[example]]
-name = "debug_uuid"
-path = "examples/debug_uuid.rs"
-
-[[example]]
-name = "debug_parse"
-path = "examples/debug_parse.rs"
-
-[[example]]
-name = "debug_pos"
-path = "examples/debug_pos.rs"
-
-[[example]]
-name = "debug_manual"
-path = "examples/debug_manual.rs"
-
-[[example]]
-name = "debug_tag"
-path = "examples/debug_tag.rs"
-
-[[example]]
-name = "debug_bytes"
-path = "examples/debug_bytes.rs"
-
 [features]
-default = ["pico"]
-## Enable the Pico ZKVM prover backend for real STARK/SNARK proof generation.
-## Requires: nightly-2025-08-04, `cargo pico build` for the guest ELF binary.
+default = []
 pico = ["dep:pico-sdk", "dep:alloy-sol-types", "dep:bincode", "dep:brevis-vera-zk-lib"]
 
 [dependencies]
@@ -102,10 +78,10 @@ pico-sdk = { git = "https://github.com/brevis-network/pico", optional = true }
 alloy-sol-types = { version = "0.8.0", optional = true }
 bincode = { version = "1.3", optional = true }
 brevis-vera-zk-lib = { path = "zk-guest/lib", optional = true }
+brevis-vera-aot-dispatch = { path = "zk-guest/app/aot-chunks", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }
 hyper = "1"
 http-body-util = "0.1"
-

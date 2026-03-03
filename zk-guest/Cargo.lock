@@ -250,6 +250,50 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "ark-bls12-381"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3df4dcc01ff89867cd86b0da835f23c3f02738353aaee7dde7495af71363b8d5"
+dependencies = [
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+]
+
+[[package]]
+name = "ark-bn254"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d69eab57e8d2663efa5c63135b2af4f396d66424f88954c21104125ab6b3e6bc"
+dependencies = [
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "ark-std 0.5.0",
+]
+
+[[package]]
+name = "ark-ec"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43d68f2d516162846c1238e755a7c4d131b892b70cc70c471a8e3ca3ed818fce"
+dependencies = [
+ "ahash",
+ "ark-ff 0.5.0",
+ "ark-poly",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "educe",
+ "fnv",
+ "hashbrown 0.15.5",
+ "itertools 0.13.0",
+ "num-bigint 0.4.6",
+ "num-integer",
+ "num-traits",
+ "zeroize",
+]
+
+[[package]]
 name = "ark-ff"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -376,6 +420,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-poly"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "579305839da207f02b89cd1679e50e67b4331e2f9294a57693e5051b7703fe27"
+dependencies = [
+ "ahash",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "educe",
+ "fnv",
+ "hashbrown 0.15.5",
+]
+
+[[package]]
+name = "ark-secp256k1"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8bd211c48debd3037b48873a7aa22c3aba034e83388aa4124795c9f220b88c7"
+dependencies = [
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "ark-std 0.5.0",
+]
+
+[[package]]
 name = "ark-serialize"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -402,10 +472,22 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f4d068aaf107ebcd7dfb52bc748f8030e0fc930ac8e360146ca54c1203088f7"
 dependencies = [
+ "ark-serialize-derive",
  "ark-std 0.5.0",
  "arrayvec",
  "digest 0.10.7",
  "num-bigint 0.4.6",
+]
+
+[[package]]
+name = "ark-serialize-derive"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "213888f660fddcca0d257e88e54ac05bca01885f258ccdf695bafd77031bb69d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -596,6 +678,47 @@ dependencies = [
  "pairing 0.22.0",
  "rand_core 0.6.4",
  "subtle",
+]
+
+[[package]]
+name = "brevis-vera-aot-dispatch"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-chunk-000",
+ "pico-aot-chunk-001",
+ "pico-aot-chunk-002",
+ "pico-aot-chunk-003",
+ "pico-aot-chunk-004",
+ "pico-aot-chunk-005",
+ "pico-aot-chunk-006",
+ "pico-aot-chunk-007",
+ "pico-aot-chunk-008",
+ "pico-aot-chunk-009",
+ "pico-aot-chunk-010",
+ "pico-aot-chunk-011",
+ "pico-aot-chunk-012",
+ "pico-aot-chunk-013",
+ "pico-aot-chunk-014",
+ "pico-aot-chunk-015",
+ "pico-aot-chunk-016",
+ "pico-aot-chunk-017",
+ "pico-aot-chunk-018",
+ "pico-aot-chunk-019",
+ "pico-aot-chunk-020",
+ "pico-aot-chunk-021",
+ "pico-aot-chunk-022",
+ "pico-aot-chunk-023",
+ "pico-aot-chunk-024",
+ "pico-aot-chunk-025",
+ "pico-aot-chunk-026",
+ "pico-aot-chunk-027",
+ "pico-aot-chunk-028",
+ "pico-aot-chunk-029",
+ "pico-aot-chunk-030",
+ "pico-aot-chunk-031",
+ "pico-aot-chunk-032",
+ "pico-aot-chunk-033",
+ "pico-aot-runtime",
 ]
 
 [[package]]
@@ -1594,6 +1717,7 @@ version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
+ "allocator-api2",
  "foldhash",
  "serde",
 ]
@@ -2592,6 +2716,273 @@ checksum = "e0848c601009d37dfa3430c4666e147e49cdcf1b92ecd3e63657d8a5f19da662"
 dependencies = [
  "memchr",
  "ucd-trie",
+]
+
+[[package]]
+name = "pico-aot-chunk-000"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-001"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-002"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-003"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-004"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-005"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-006"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-007"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-008"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-009"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-010"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-011"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-012"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-013"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-014"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-015"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-016"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-017"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-018"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-019"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-020"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-021"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-022"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-023"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-024"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-025"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-026"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-027"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-028"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-029"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-030"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-031"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-032"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-033"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-runtime"
+version = "1.2.2"
+source = "git+https://github.com/brevis-network/pico#f8617c9c4b540cf31f8b07f6144c93d04799f0f4"
+dependencies = [
+ "ark-bls12-381",
+ "ark-bn254",
+ "ark-ff 0.5.0",
+ "ark-secp256k1",
+ "bls12_381",
+ "curve25519-dalek",
+ "halo2curves",
+ "hashbrown 0.14.5",
+ "hybrid-array",
+ "k256",
+ "log",
+ "num",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "once_cell",
+ "p256",
+ "p3-field",
+ "p3-koala-bear",
+ "p3-symmetric",
+ "pico-vm",
+ "tiny-keccak",
+ "typenum",
 ]
 
 [[package]]
