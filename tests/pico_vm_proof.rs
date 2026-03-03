@@ -104,7 +104,12 @@ fn test_pico_crop() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Crop]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico crop proof generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
@@ -171,7 +176,12 @@ fn test_pico_crop_reexecution() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Crop]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico crop re-execution proof generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
@@ -220,7 +230,12 @@ fn test_pico_resize() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Resize]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico resize proof generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
@@ -275,7 +290,12 @@ fn test_pico_resize_reexecution() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Resize]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico resize re-execution proof generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
@@ -323,7 +343,12 @@ fn test_pico_rotate() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Rotate]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico rotate proof generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
@@ -375,7 +400,12 @@ fn test_pico_rotate_reexecution() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Rotate]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico rotate re-execution proof generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
@@ -471,7 +501,12 @@ fn test_pico_chain_crop_resize_rotate() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Crop, EditOperation::Resize, EditOperation::Rotate]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico chain proof (crop→resize→rotate) generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
@@ -577,7 +612,12 @@ fn test_pico_real_image_edit_and_prove() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Crop, EditOperation::Resize, EditOperation::Rotate]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico real-image proof (crop→resize→rotate) generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,
@@ -675,7 +715,12 @@ fn test_pico_real_image_crop_reexecution() {
         proof.public_inputs.operations_applied,
         vec![EditOperation::Crop]
     );
-    assert_eq!(proof.metadata.prover_type, "pico");
+    // Support both JIT ("pico") and AOT ("pico-aot") modes
+    assert!(
+        proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+        "prover_type should be 'pico' or 'pico-aot', got {}",
+        proof.metadata.prover_type
+    );
     println!(
         "Pico real-image crop re-execution proof generated in {}ms ({} bytes)",
         proof.metadata.generation_time_ms,

@@ -10,7 +10,7 @@ In an era of AI-generated and manipulated media, Brevis Vera enables:
 - **Editing Transparency** — demonstrate that specific edits (crop, resize, rotate) were applied
 - **Privacy-Preserving Verification** — generate ZK proofs that verify authenticity without revealing sensitive details (original image, exact parameters, signer identity)
 
-### Architecture
+## Architecture
 
 ```
 Media File ─→ Provenance Layer ─→ Editing Layer ─→ ZK Proof Layer ─→ Verifiable Proof
@@ -20,39 +20,96 @@ Media File ─→ Provenance Layer ─→ Editing Layer ─→ ZK Proof Layer �
                                        └─ Hash chaining
 ```
 
-### Project Structure
+## What the ZKVM Proves
+
+The Pico ZKVM generates STARK proofs that cryptographically verify:
+
+### 1. C2PA Provenance Verification
+
+| Check | Description |
+|-------|-------------|
+| **Structural Validation** | Verifies C2PA manifest has required fields (active_manifest, claim_generator) and recognized signing algorithm (ES256, ES384, PS256, etc.) |
+| **ECDSA P-256 Signature** | Cryptographically verifies the ECDSA signature over the image hash using the provided public key |
+
+### 2. Editing Operations Verification
+
+The proof verifies that editing operations were actually performed on the image by **re-executing** them inside the ZKVM:
+
+| Operation | Verification Method |
+|-----------|---------------------|
+| **Crop** | Extracts sub-rectangle from raw RGBA pixels, computes SHA-256, verifies output hash matches |
+| **Rotate** | Re-executes 90°/180°/270° rotation via pixel permutation, verifies output hash |
+| **Resize** | Re-executes nearest-neighbor interpolation with integer arithmetic, verifies output hash |
+
+### 3. Hash Chain Verification
+
+Each editing operation's output hash must equal the next operation's input hash, forming a cryptographic chain from original to edited image.
+
+### Privacy Guarantees
+
+The proof reveals **ONLY** these public values:
 
 ```
-brevis-vera/
-├── src/                    # Rust backend
-│   ├── main.rs             # Axum HTTP server (port 8080)
-│   ├── provenance/         # C2PA metadata extraction & parsing
-│   ├── editor/             # Image editing (crop, resize, rotate)
-│   └── zk/                 # ZK proof generation & verification
-├── zk-guest/               # Pico ZKVM guest program
-│   ├── app/                # RISC-V guest (compiled to ELF)
-│   └── lib/                # Shared types between host & guest
-├── frontend/               # React + TypeScript UI
-│   └── src/
-│       ├── components/     # ImageUploader, ImageEditor, etc.
-│       ├── services/       # API client
-│       └── types/          # TypeScript type definitions
-├── certs/                  # Test certificates for C2PA signing
-├── imgs/                   # Test images with C2PA metadata
-└── tests/                  # Integration & E2E tests
+PublicValuesStruct {
+    c2pa_verified: bool,      // Whether C2PA structure was valid
+    ecdsa_verified: bool,     // Whether ECDSA signature verified
+    editing_verified: bool,   // Whether editing chain verified
+    original_image_hash: bytes32,  // SHA-256 of original image
+    edited_image_hash: bytes32,    // SHA-256 of edited image
+    num_operations: uint32,        // Number of editing operations
+}
 ```
 
-## Prerequisites
+The proof does **NOT** reveal:
+- C2PA signer identity or certificate details
+- Exact crop coordinates, resize dimensions, or rotation angles
+- Original image content or pixels
+- ECDSA signature values or public key used
+
+## Proof Flow
+
+```
+Host Application
+      │
+      ▼
+┌─────────────────────────┐
+│  1. Prepare Input       │
+│  - CircuitInput         │
+│  - C2PA data (optional)│
+│  - Editing records     │
+│  - Image witnesses     │
+└─────────────────────────┘
+      │
+      ▼ (stdin)
+┌─────────────────────────┐
+│  2. ZKVM Execution     │
+│  - Verify C2PA         │
+│  - Verify ECDSA sig    │
+│  - Re-execute edits    │
+│  - Verify hash chain   │
+└─────────────────────────┘
+      │
+      ▼ (commit_bytes)
+┌─────────────────────────┐
+│  3. Public Values      │
+│  - Verification bools │
+│  - Image hashes        │
+│  - Operation count     │
+└─────────────────────────┘
+      │
+      ▼
+   STARK Proof
+```
+
+## Getting Started
+
+### Prerequisites
 
 - **Rust** (edition 2024) with Cargo
 - **Node.js** (v18+) and npm
 - **Pico ZKVM toolchain** (for real proof generation)
 
-## Getting Started
-
 ### 1. Build the ZK Guest Program
-
-The guest program runs inside the Pico ZKVM to generate real STARK proofs:
 
 ```bash
 cd zk-guest/app
@@ -64,8 +121,11 @@ This produces the ELF binary at `zk-guest/app/elf/riscv32im-pico-zkvm-elf`.
 ### 2. Start the Backend Server
 
 ```bash
-# With real ZK proofs (PicoProver, default)
+# With real ZK proofs (PicoProver AOT mode, default)
 cargo run --release
+
+# With real ZK proofs (PicoProver JIT mode)
+cargo run --release --features pico
 
 # Without ZK (SimulatedProver, faster for development)
 cargo run --release --no-default-features
@@ -103,22 +163,38 @@ curl -X POST http://localhost:8080/api/v1/provenance/extract \
   -d "{\"image\": \"$IMAGE_B64\"}"
 ```
 
+## Project Structure
+
+```
+brevis-vera/
+├── src/                    # Rust backend
+│   ├── main.rs             # Axum HTTP server (port 8080)
+│   ├── provenance/         # C2PA metadata extraction & parsing
+│   ├── editor/             # Image editing (crop, resize, rotate)
+│   └── zk/                 # ZK proof generation & verification
+├── zk-guest/               # Pico ZKVM guest program
+│   ├── app/                # RISC-V guest (compiled to ELF)
+│   │   └── src/main.rs    # ZKVM proof logic (crop/rotate/resize/ECDSA)
+│   └── lib/                # Shared types between host & guest
+├── frontend/               # React + TypeScript UI
+├── certs/                  # Test certificates for C2PA signing
+├── imgs/                   # Test images with C2PA metadata
+└── tests/                  # Integration & E2E tests
+```
+
 ## Testing
 
-### Unit & Integration Tests
+### Run Tests
 
 ```bash
-# Run all tests (uses SimulatedProver by default for speed)
+# Run all tests (uses PicoProver AOT mode by default)
 cargo test
 
-# Run all tests including Pico ZKVM tests (slower, generates real proofs)
+# Run all tests with JIT mode (slower)
 cargo test --features pico
 
-# Run a specific test suite
-cargo test --test integration          # Integration tests
-cargo test --test editing_api          # Editing API tests
-cargo test --test zk_proof             # ZK proof tests (simulated)
-cargo test --test pico_vm_proof --features pico  # Pico ZKVM E2E tests (slow)
+# Run all tests without ZK (SimulatedProver only)
+cargo test --no-default-features
 ```
 
 ### Test Suites
@@ -128,12 +204,12 @@ cargo test --test pico_vm_proof --features pico  # Pico ZKVM E2E tests (slow)
 | `tests/integration.rs` | End-to-end provenance + editing pipeline | Fast |
 | `tests/editing_api.rs` | Editing API (crop, resize, rotate) | Fast |
 | `tests/zk_proof.rs` | ZK proof generation with SimulatedProver | Fast |
-| `tests/pico_vm_proof.rs` | Real ZKVM proof generation with PicoProver | Slow (~30s per test) |
+| `tests/pico_vm_proof.rs` | Real ZKVM proof generation with PicoProver | Slow |
 
-### Benchmark: Run Specific Edit Operation Tests
+### Benchmark Specific Operations
 
 ```bash
-# Run all Pico edit operation tests (release mode for accurate timing)
+# Run all Pico edit operation tests (release mode)
 cargo test --features pico --test pico_vm_proof --release -- --nocapture
 
 # Run only crop tests
@@ -146,31 +222,39 @@ cargo test --features pico --test pico_vm_proof --release resize -- --nocapture
 cargo test --features pico --test pico_vm_proof --release rotate -- --nocapture
 ```
 
-### Run Only Fast Tests
+### AOT (Ahead-of-Time) Mode
+
+Pico supports two execution modes:
+
+- **JIT (Just-In-Time)**: Interprets RISC-V instructions at runtime
+- **AOT (Ahead-of-Time)**: Pre-compiled, optimized execution (faster, default)
 
 ```bash
-cargo test --no-default-features
+# AOT mode (default)
+cargo test test_pico_real_image_crop_reexecution -- --nocapture
+
+# JIT mode
+cargo test --features pico test_pico_real_image_crop_reexecution -- --nocapture
 ```
 
-### Frontend
+**Note:** When using AOT mode, rebuild the AOT chunks after modifying the guest program:
 
 ```bash
-cd frontend
-npm run build    # Type-check + build
+# 1. Rebuild the guest ELF
+cd zk-guest/app && cargo pico build
+
+# 2. Regenerate AOT chunks
+/path/to/pico/target/release/generate_crates \
+    zk-guest/app/elf/riscv32im-pico-zkvm-elf \
+    zk-guest/app/aot-chunks
 ```
 
 ## Feature Flags
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `pico` | ✅ | Enable Pico ZKVM prover for real STARK/SNARK proof generation |
-
-To disable the `pico` feature (dev mode with SimulatedProver only):
-
-```bash
-cargo run --release --no-default-features
-cargo test --no-default-features
-```
+| `pico` | ❌ | Enable Pico ZKVM prover for real STARK/SNARK proof generation (JIT mode) |
+| `pico-aot` | ✅ | Enable AOT (Ahead-of-Time) mode for faster execution |
 
 ## Technology Stack
 

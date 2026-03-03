@@ -1038,6 +1038,7 @@ dependencies = [
  "openssl",
  "photon-rs",
  "pico-sdk",
+ "pico-vm",
  "serde",
  "serde_json",
  "sha2",
@@ -1089,6 +1090,15 @@ dependencies = [
  "pico-aot-chunk-031",
  "pico-aot-chunk-032",
  "pico-aot-chunk-033",
+ "pico-aot-chunk-034",
+ "pico-aot-chunk-035",
+ "pico-aot-chunk-036",
+ "pico-aot-chunk-037",
+ "pico-aot-chunk-038",
+ "pico-aot-chunk-039",
+ "pico-aot-chunk-040",
+ "pico-aot-chunk-041",
+ "pico-aot-chunk-042",
  "pico-aot-runtime",
 ]
 
@@ -1098,9 +1108,13 @@ version = "0.1.0"
 dependencies = [
  "alloy-sol-types",
  "brevis-vera-zk-lib",
+ "ecdsa",
+ "hex",
+ "p256",
  "pico-sdk",
  "serde",
  "sha2",
+ "signature",
 ]
 
 [[package]]
@@ -4748,6 +4762,69 @@ dependencies = [
 
 [[package]]
 name = "pico-aot-chunk-033"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-034"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-035"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-036"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-037"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-038"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-039"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-040"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-041"
+version = "0.1.0"
+dependencies = [
+ "pico-aot-runtime",
+]
+
+[[package]]
+name = "pico-aot-chunk-042"
 version = "0.1.0"
 dependencies = [
  "pico-aot-runtime",

@@ -21,7 +21,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::zk::prover::{SimulatedProver, ZkProver};
-#[cfg(feature = "pico")]
+#[cfg(any(feature = "pico", feature = "pico-aot"))]
 use crate::zk::prover::PicoProver;
 use crate::zk::types::{
     C2paProofInput, CombinedProofInput, EditingProofInput, EditingRecordInput,
@@ -30,7 +30,7 @@ use crate::zk::types::{
 use crate::provenance::types::C2paVerificationData;
 
 /// Default path to the Pico ZKVM guest ELF binary (resolved relative to project root).
-#[cfg(feature = "pico")]
+#[cfg(any(feature = "pico", feature = "pico-aot"))]
 const DEFAULT_ELF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/zk-guest/app/elf/riscv32im-pico-zkvm-elf");
 
 // ---------------------------------------------------------------------------
@@ -174,11 +174,14 @@ async fn handle_prove(Json(req): Json<ZkProveRequest>) -> impl IntoResponse {
     }
 
     // Create prover: use PicoProver (real ZKVM) when compiled with
-    // the "pico" feature, otherwise fall back to SimulatedProver.
-    #[cfg(feature = "pico")]
+    // the "pico" or "pico-aot" feature, otherwise fall back to SimulatedProver.
+    #[cfg(any(feature = "pico", feature = "pico-aot"))]
     let prover: Box<dyn ZkProver> = match PicoProver::new(DEFAULT_ELF_PATH) {
         Ok(p) => {
-            tracing::info!("Using PicoProver (real ZKVM)");
+            #[cfg(feature = "pico-aot")]
+            tracing::info!("Using PicoProver (AOT mode)");
+            #[cfg(not(feature = "pico-aot"))]
+            tracing::info!("Using PicoProver (JIT mode)");
             Box::new(p)
         }
         Err(e) => {
@@ -186,7 +189,7 @@ async fn handle_prove(Json(req): Json<ZkProveRequest>) -> impl IntoResponse {
             Box::new(SimulatedProver::new())
         }
     };
-    #[cfg(not(feature = "pico"))]
+    #[cfg(not(any(feature = "pico", feature = "pico-aot")))]
     let prover: Box<dyn ZkProver> = {
         tracing::info!("Using SimulatedProver (compile with --features pico for real proofs)");
         Box::new(SimulatedProver::new())

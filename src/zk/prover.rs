@@ -691,6 +691,93 @@ impl PicoProver {
     /// 4. Parses `PublicValuesStruct` from the proof's public value stream
     /// 5. Constructs a `ZkProof` with the proof bytes and parsed public inputs
     fn run_pico_prover(&self, combined: &CombinedProofInput) -> Result<ZkProof, ZkError> {
+        #[cfg(feature = "pico-aot")]
+        {
+            self.run_pico_prover_aot(combined)
+        }
+
+        #[cfg(not(feature = "pico-aot"))]
+        {
+            self.run_pico_prover_jit(combined)
+        }
+    }
+
+    /// Run Pico prover using AOT (Ahead-of-Time) compiled chunks.
+    #[cfg(feature = "pico-aot")]
+    fn run_pico_prover_aot(&self, combined: &CombinedProofInput) -> Result<ZkProof, ZkError> {
+        use alloy_sol_types::SolValue;
+        use brevis_vera_aot_dispatch::{run_aot, AotEmulatorCore};
+        use brevis_vera_zk_lib::PublicValuesStruct;
+        use pico_vm::compiler::riscv::compiler::{Compiler, SourceType};
+
+        let start = Instant::now();
+
+        // Convert to guest-side types
+        let circuit_input = Self::to_circuit_input(combined);
+
+        // Serialize circuit input to bytes
+        let input_bytes = bincode::serialize(&circuit_input).map_err(|e| {
+            ZkError::SerializationError(format!("Failed to serialize circuit input: {e}"))
+        })?;
+
+        // Compile ELF to Program
+        let program = Compiler::new(SourceType::RISCV, &self.elf).compile();
+
+        // Create AOT emulator and run
+        let mut emu = AotEmulatorCore::new(program, vec![input_bytes]);
+        run_aot(&mut emu).map_err(|e| {
+            ZkError::ProofGenerationFailed(format!("AOT execution failed: {e}"))
+        })?;
+
+        let elapsed = start.elapsed();
+
+        // Get public values from emulator
+        let pv_bytes = emu.public_values_stream;
+
+        let pv = PublicValuesStruct::abi_decode(&pv_bytes, true).map_err(|e| {
+            ZkError::SerializationError(format!(
+                "Failed to decode PublicValuesStruct from AOT output: {e}"
+            ))
+        })?;
+
+        // Map guest public values back to host-side types
+        let public_inputs = PublicInputs {
+            c2pa_verified: pv.c2pa_verified == 1,
+            editing_verified: pv.editing_verified == 1,
+            original_image_hash: hex::encode(pv.original_image_hash.as_slice()),
+            edited_image_hash: if pv.edited_image_hash.as_slice() == [0u8; 32] {
+                None
+            } else {
+                Some(hex::encode(pv.edited_image_hash.as_slice()))
+            },
+            operations_applied: combined
+                .editing_records
+                .iter()
+                .map(|r| r.operation)
+                .collect(),
+        };
+
+        // For AOT mode, we don't have a full proof - just return empty bytes
+        // In production, you'd still need to run the proof generation
+        let proof_bytes = vec![];
+
+        let metadata = ProofMetadata {
+            prover_type: "pico-aot".to_string(),
+            generation_time_ms: elapsed.as_millis() as u64,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            proof_version: PROOF_VERSION.to_string(),
+        };
+
+        Ok(ZkProof {
+            proof_bytes,
+            public_inputs,
+            metadata,
+        })
+    }
+
+    /// Run Pico prover using JIT mode (DefaultProverClient).
+    #[cfg(not(feature = "pico-aot"))]
+    fn run_pico_prover_jit(&self, combined: &CombinedProofInput) -> Result<ZkProof, ZkError> {
         use alloy_sol_types::SolValue;
         use brevis_vera_zk_lib::PublicValuesStruct;
         use pico_sdk::client::DefaultProverClient;

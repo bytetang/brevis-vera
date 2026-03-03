@@ -1,19 +1,18 @@
 # AOT Optimized Emulator Configuration Guide
 
-This guide explains how to enable and configure the **AOT (Ahead-of-Time) Optimized Emulator** in projects using pico. Based on the analysis of both the pico repository examples and the current brevis-vera-zk project.
+This guide explains how to enable and configure the **AOT (Ahead-of-Time) Optimized Emulator** in projects using pico. Based on the analysis of both the pico repository examples and the current brevis-vera project.
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Two Ways to Enable AOT](#two-ways-to-enable-aot)
-3. [Method 1: Feature Flag (Simple)](#method-1-feature-flag-simple)
-4. [Method 2: Pre-compiled Chunks (Production)](#method-2-pre-compiled-chunks-production)
-5. [Brevis-Vera Implementation](#brevis-vera-implementation)
-6. [Comparison](#comparison)
-7. [Migration Steps](#migration-steps)
-8. [Troubleshooting](#troubleshooting)
+2. [Pre-compiled Chunks (Production)](#pre-compiled-chunks-production)
+3. [Brevis-Vera Implementation](#brevis-vera-implementation)
+4. [Feature Flags Configuration](#feature-flags-configuration)
+5. [Troubleshooting](#troubleshooting)
+6. [Environment Variables](#environment-variables)
+7. [Additional Resources](#additional-resources)
 
 ---
 
@@ -30,68 +29,9 @@ The AOT mode provides significantly better performance by pre-compiling the RISC
 
 ---
 
-## Two Ways to Enable AOT
+## Pre-compiled Chunks (Production)
 
-### Method 1: Feature Flag (Simple)
-
-This is the easiest way to enable AOT in a new project. It works by enabling the `aot` feature flag.
-
-### Method 2: Pre-compiled Chunks (Production)
-
-This is the approach used in the brevis-vera-zk project. The RISC-V program is pre-compiled into multiple chunks for maximum performance.
-
----
-
-## Method 1: Feature Flag (Simple)
-
-### Step 1: Add Dependencies
-
-Add the following to your project's `Cargo.toml`:
-
-```toml
-[dependencies]
-pico-sdk = { git = "https://github.com/brevis-network/pico" }
-pico-vm = { git = "https://github.com/brevis-network/pico" }
-pico-aot-dispatch = { git = "https://github.com/brevis-network/pico" }
-pico-aot-runtime = { git = "https://github.com/brevis-network/pico" }
-
-[features]
-default = ["aot"]
-aot = ["pico-aot-dispatch", "pico-aot-runtime/aot"]
-
-# Optional optimizations
-bigint-rug = ["pico-vm/bigint-rug"]
-jemalloc = ["pico-vm/jemalloc"]
-mmap-memory = ["pico-vm/mmap-memory"]
-```
-
-### Step 2: Use AotEmulatorCore in Code
-
-```rust
-use pico_vm::{Emulator, EmulatorConfig};
-use pico_aot_runtime::AotEmulatorCore;
-
-// 1. Load the compiled RISC-V program (ELF)
-let program = std::fs::read("your_app.elf")?;
-
-// 2. Create input data
-let input_data = vec![/* your input bytes */];
-
-// 3. Create AOT Emulator
-let mut emu = AotEmulatorCore::new(program, input_data);
-
-// 4. Run with AOT dispatch
-pico_aot_dispatch::run_aot(&mut emu)?;
-
-// 5. Get results from public values
-let result = emu.public_values_stream;
-```
-
----
-
-## Method 2: Pre-compiled Chunks (Production)
-
-This is the approach used in the brevis-vera-zk project for maximum performance. It involves pre-compiling the RISC-V program into multiple chunks.
+This approach is used in brevis-vera for maximum performance. It involves pre-compiling the RISC-V program into multiple chunks.
 
 ### Architecture Overview
 
@@ -101,19 +41,15 @@ brevis-vera-guest (Rust RISC-V program)
     cargo pico build
 brevis-vera/zk-guest/app/elf/riscv32im-pico-zkvm-elf
     ↓ AOT Compile
-    aot-chunks/ (34 pre-compiled chunks)
+    aot-chunks/ (43 pre-compiled chunks)
 ```
 
 ### Step 1: Build AOT Codegen Tool
 
-Clone and build the pico repository:
+Build the pico repository:
 
 ```bash
-# Clone pico
-git clone https://github.com/brevis-network/pico
-cd pico
-
-# Build AOT codegen tool
+cd /path/to/pico
 cargo build -p pico-aot-codegen --release
 ```
 
@@ -130,7 +66,7 @@ The binary will be at `target/release/generate_crates`.
 
 This generates:
 - `aot-chunks/Cargo.toml` - Main dispatch crate
-- `aot-chunks/chunks/chunk_000` to `chunk_033` - 34 chunk crates
+- `aot-chunks/chunks/chunk_000` to `chunk_042` - 43 chunk crates
 
 ### Step 3: Configure Chunk Crates
 
@@ -139,7 +75,7 @@ Update each chunk's `Cargo.toml` to use git dependencies instead of local paths:
 ```bash
 cd zk-guest/app/aot-chunks/chunks
 for i in chunk_*; do
-    sed -i '' 's|pico-aot-runtime = { path = "../../../aot-runtime" }|pico-aot-runtime = { git = "https://github.com/brevis-network/pico" }|' $i/Cargo.toml
+    sed -i '' 's|pico-aot-runtime = { path = ".*" }|pico-aot-runtime = { git = "https://github.com/brevis-network/pico" }|' $i/Cargo.toml
 done
 ```
 
@@ -163,12 +99,12 @@ pico = []
 [dependencies]
 pico-aot-runtime = { git = "https://github.com/brevis-network/pico" }
 pico-aot-chunk-000 = { path = "chunks/chunk_000" }
-# ... all other chunks
+# ... all other chunks (chunk_001 to chunk_042)
 ```
 
 ### Step 5: Add to Workspace
 
-Add to your `Cargo.toml`:
+Add to your root `Cargo.toml`:
 
 ```toml
 [workspace]
@@ -198,19 +134,13 @@ pub fn run_aot(emu: &mut AotEmulatorCore) -> Result<(), String> {
 
 ## Brevis-Vera Implementation
 
-This section documents how brevis-vra implements AOT.
-
-### Current Status
-
-- ✅ AOT chunks generated (34 chunks)
-- ✅ Integrated into workspace
-- ⏳ Prover code uses JIT (DefaultProverClient)
+This section documents how brevis-vera implements AOT.
 
 ### Project Structure
 
 ```
 brevis-vera/
-├── Cargo.toml                      # Workspace root
+├── Cargo.toml                      # Workspace root with pico-aot feature
 ├── zk-guest/
 │   ├── lib/                        # Shared types
 │   └── app/
@@ -231,51 +161,83 @@ brevis-vera/
 |------|-------------|
 | `zk-guest/app/aot-chunks/src/lib.rs` | AOT dispatch with `run_aot` function |
 | `Cargo.toml` | Workspace with `brevis-vera-aot-dispatch` dependency |
+| `src/zk/prover.rs` | PicoProver with AOT/JIT mode support |
+
+---
+
+## Feature Flags Configuration
+
+### Cargo.toml Configuration
+
+```toml
+[features]
+default = ["pico-aot"]  # AOT mode is default
+pico = ["dep:pico-sdk", "dep:alloy-sol-types", "dep:bincode", "dep:brevis-vera-zk-lib", "dep:brevis-vera-aot-dispatch", "dep:pico-vm"]
+pico-aot = ["pico", "dep:pico-vm"]
+
+[dependencies]
+pico-vm = { git = "https://github.com/brevis-network/pico", optional = true }
+brevis-vera-aot-dispatch = { path = "zk-guest/app/aot-chunks", default-features = false, optional = true }
+```
+
+### API Configuration (src/zk/api.rs)
+
+The API handler uses conditional compilation to support both modes:
+
+```rust
+#[cfg(any(feature = "pico", feature = "pico-aot"))]
+use crate::zk::prover::PicoProver;
+
+#[cfg(any(feature = "pico", feature = "pico-aot"))]
+const DEFAULT_ELF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/zk-guest/app/elf/riscv32im-pico-zkvm-elf");
+
+// Create prover based on feature
+#[cfg(any(feature = "pico", feature = "pico-aot"))]
+let prover: Box<dyn ZkProver> = match PicoProver::new(DEFAULT_ELF_PATH) {
+    Ok(p) => {
+        #[cfg(feature = "pico-aot")]
+        tracing::info!("Using PicoProver (AOT mode)");
+        #[cfg(not(feature = "pico-aot"))]
+        tracing::info!("Using PicoProver (JIT mode)");
+        Box::new(p)
+    }
+    // ...
+};
+```
+
+### Prover Implementation (src/zk/prover.rs)
+
+The PicoProver automatically selects AOT or JIT based on feature:
+
+```rust
+fn run_pico_prover(&self, combined: &CombinedProofInput) -> Result<ZkProof, ZkError> {
+    #[cfg(feature = "pico-aot")]
+    {
+        self.run_pico_prover_aot(combined)
+    }
+
+    #[cfg(not(feature = "pico-aot"))]
+    {
+        self.run_pico_prover_jit(combined)
+    }
+}
+```
 
 ### Build Commands
 
 ```bash
-# Build with AOT chunks
-cargo build --features pico
+# AOT mode (default) - faster execution
+cargo run --release
+cargo test
 
-# Run tests
-cargo test --features pico test_pico_crop --release
+# JIT mode - slower but easier debugging
+cargo run --release --features pico
+cargo test --features pico
 
-# Benchmark
-cargo test --features pico --release -- --nocapture | grep "generated in"
+# No ZK (SimulatedProver)
+cargo run --release --no-default-features
+cargo test --no-default-features
 ```
-
----
-
-## Comparison
-
-| Feature | Feature Flag | Pre-compiled Chunks |
-|---------|--------------|---------------------|
-| **Ease of Use** | Simple | Complex |
-| **Performance** | Good (faster than JIT) | Best (fully static optimization) |
-| **Flexibility** | High | Low |
-| **Best For** | Small/medium programs | Large programs, sharding |
-| **Example Projects** | pico examples | brevis-vera-zk |
-
----
-
-## Migration Steps
-
-### From JIT to AOT (Feature Flag)
-
-1. Add `pico-aot-dispatch` and `pico-aot-runtime` dependencies
-2. Enable the `aot` feature in your `Cargo.toml`
-3. Replace `Emulator` with `AotEmulatorCore`
-4. Test that your program works correctly
-
-### From Feature Flag to Pre-compiled Chunks
-
-1. Run AOT compilation to generate chunks
-2. Create chunk crates for each chunk
-3. Create an AOT crate that depends on all chunks
-4. Implement the `run_aot` function
-5. Update your prover to use the new AOT module
-6. Benchmark to ensure performance improvement
 
 ---
 
@@ -299,7 +261,7 @@ default = []
 pico = []
 ```
 
-### Compilation Errors with Chunks
+### Error: Compilation errors with chunks
 
 If chunk compilation fails, ensure all chunks use the same `pico-aot-runtime` source:
 
@@ -309,6 +271,39 @@ cd aot-chunks/chunks
 for i in chunk_*; do
     sed -i '' 's|pico-aot-runtime = { path = ".*" }|pico-aot-runtime = { git = "https://github.com/brevis-network/pico" }|' $i/Cargo.toml
 done
+```
+
+### Error: prover_type mismatch in tests
+
+When running tests, the prover_type returned differs between modes:
+- JIT mode: `"pico"`
+- AOT mode: `"pico-aot"`
+
+Update test assertions to accept both:
+
+```rust
+assert!(
+    proof.metadata.prover_type == "pico" || proof.metadata.prover_type == "pico-aot",
+    "prover_type should be 'pico' or 'pico-aot', got {}",
+    proof.metadata.prover_type
+);
+```
+
+### Error: AOT chunks out of sync with ELF
+
+When modifying the guest program, rebuild both the ELF and AOT chunks:
+
+```bash
+# 1. Rebuild guest ELF
+cd zk-guest/app && cargo pico build
+
+# 2. Regenerate AOT chunks
+/path/to/pico/target/release/generate_crates \
+    zk-guest/app/elf/riscv32im-pico-zkvm-elf \
+    zk-guest/app/aot-chunks
+
+# 3. Rebuild the project
+cargo build
 ```
 
 ---

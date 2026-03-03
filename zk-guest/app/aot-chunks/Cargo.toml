@@ -3,13 +3,6 @@ name = "brevis-vera-aot-dispatch"
 version = "0.1.0"
 edition = "2021"
 
-[package.metadata.infinite]
-aot = true
-
-[features]
-default = []
-pico = []
-
 [dependencies]
 pico-aot-runtime = { git = "https://github.com/brevis-network/pico" }
 pico-aot-chunk-000 = { path = "chunks/chunk_000" }
@@ -46,3 +39,12 @@ pico-aot-chunk-030 = { path = "chunks/chunk_030" }
 pico-aot-chunk-031 = { path = "chunks/chunk_031" }
 pico-aot-chunk-032 = { path = "chunks/chunk_032" }
 pico-aot-chunk-033 = { path = "chunks/chunk_033" }
+pico-aot-chunk-034 = { path = "chunks/chunk_034" }
+pico-aot-chunk-035 = { path = "chunks/chunk_035" }
+pico-aot-chunk-036 = { path = "chunks/chunk_036" }
+pico-aot-chunk-037 = { path = "chunks/chunk_037" }
+pico-aot-chunk-038 = { path = "chunks/chunk_038" }
+pico-aot-chunk-039 = { path = "chunks/chunk_039" }
+pico-aot-chunk-040 = { path = "chunks/chunk_040" }
+pico-aot-chunk-041 = { path = "chunks/chunk_041" }
+pico-aot-chunk-042 = { path = "chunks/chunk_042" }
