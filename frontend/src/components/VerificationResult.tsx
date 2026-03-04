@@ -51,9 +51,9 @@ const VerificationResult: React.FC<VerificationResultProps> = ({ proof, editedIm
             }}
           >
             {public_inputs.c2pa_verified ? (
-              <CheckCircleOutlined />
+              <CheckCircleOutlined style={{ color: '#10b981' }} />
             ) : (
-              <CloseCircleOutlined />
+              <CloseCircleOutlined style={{ color: '#ef4444' }} />
             )}
             C2PA Verified
           </div>
@@ -65,9 +65,9 @@ const VerificationResult: React.FC<VerificationResultProps> = ({ proof, editedIm
             }}
           >
             {public_inputs.editing_verified ? (
-              <CheckCircleOutlined />
+              <CheckCircleOutlined style={{ color: '#10b981' }} />
             ) : (
-              <CloseCircleOutlined />
+              <CloseCircleOutlined style={{ color: '#ef4444' }} />
             )}
             Editing Verified
           </div>

@@ -19,6 +19,7 @@ use axum::{
     routing::post,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 
 use crate::zk::prover::{SimulatedProver, ZkProver};
 #[cfg(any(feature = "pico", feature = "pico-aot"))]
@@ -63,6 +64,10 @@ pub struct ZkProveRequest {
     /// SHA-256 hash of the edited image (required for "editing" or "combined")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edited_image_hash: Option<String>,
+    /// Original image as base64-encoded bytes (optional)
+    /// When provided, the hash will be computed from the actual image for verification
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_image: Option<String>,
 }
 
 /// Simplified C2PA data input for API.
@@ -147,7 +152,7 @@ pub struct ErrorResponse {
 pub fn zk_router() -> Router {
     Router::new()
         .route("/api/v1/zk/prove", post(handle_prove))
-        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB
+        .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100 MB for large images with raw pixels
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +177,99 @@ async fn handle_prove(Json(req): Json<ZkProveRequest>) -> impl IntoResponse {
             StatusCode::BAD_REQUEST,
             "original_image_hash must be 64 characters (SHA-256 hex)",
         );
+    }
+
+    // If original_image is provided, compute hash from actual image
+    // This ensures the hash matches what the editor API returns
+    let mut req = req;
+    let mut original_pixels: Option<(Vec<u8>, u32, u32)> = None;
+
+    if let Some(ref original_image) = req.original_image {
+        if let Ok(image_bytes) = base64::Engine::decode(
+            &base64::engine::general_purpose::STANDARD,
+            original_image,
+        ) {
+            // Compute hash from raw pixels (matching editor's logic)
+            if let Ok(img) = image::load_from_memory(&image_bytes) {
+                let rgba = img.to_rgba8();
+                let (width, height) = rgba.dimensions();
+                tracing::info!("Original image dimensions: {}x{}", width, height);
+                let pixels = rgba.into_raw();
+                let computed_hash = hex::encode(sha2::Sha256::digest(&pixels));
+
+                // Store original pixels for witness
+                original_pixels = Some((pixels, width, height));
+
+                tracing::info!(
+                    "Computed original_image_hash from provided image: {} (was: {})",
+                    computed_hash,
+                    req.original_image_hash
+                );
+                req.original_image_hash = computed_hash.clone();
+
+                // Fix editing record witnesses for re-execution verification.
+                //
+                // The ZKVM guest needs the INPUT image's pixels for each operation.
+                // In a chain (e.g. crop → rotate):
+                //   - Record 0 (crop):   input = original image pixels
+                //   - Record 1 (rotate): input = cropped image pixels (output of record 0)
+                //
+                // The frontend provides each record's raw_pixels as the OUTPUT of that
+                // operation. So record[i-1].raw_pixels = the input witness for record[i].
+                //
+                // We save the frontend-provided raw_pixels before overwriting, then:
+                //   - Record 0: witness = original image pixels, input_hash = original hash
+                //   - Record i>0: witness = record[i-1]'s original raw_pixels (output of previous op)
+                //                 input_hash is left as-is (should already chain correctly)
+
+                // Save frontend-provided raw_pixels (output of each operation) before overwriting
+                let frontend_raw: Vec<_> = req.editing_records.iter()
+                    .map(|r| (r.raw_pixels.clone(), r.pixel_width, r.pixel_height))
+                    .collect();
+
+                for (i, record) in req.editing_records.iter_mut().enumerate() {
+                    if i == 0 {
+                        // First record: fix input_hash to match re-computed original hash
+                        if record.input_hash != computed_hash {
+                            tracing::info!(
+                                "Fixing first editing record input_hash: {} -> {}",
+                                record.input_hash,
+                                computed_hash
+                            );
+                            record.input_hash = computed_hash.clone();
+                        }
+                        // First record: witness = original image pixels
+                        if let Some((ref pixels, width, height)) = original_pixels {
+                            tracing::info!(
+                                "Record {}: using original image pixels as witness: {}x{}, {} bytes",
+                                i, width, height, pixels.len()
+                            );
+                            record.raw_pixels = Some(pixels.clone());
+                            record.pixel_width = Some(width);
+                            record.pixel_height = Some(height);
+                        }
+                    } else {
+                        // Subsequent records: witness = previous record's output pixels
+                        // (which is this record's input image)
+                        let (ref prev_pixels, prev_w, prev_h) = frontend_raw[i - 1];
+                        if let Some(pixels) = prev_pixels {
+                            tracing::info!(
+                                "Record {}: using previous record's output pixels as witness: {}x{}, {} bytes",
+                                i, prev_w.unwrap_or(0), prev_h.unwrap_or(0), pixels.len()
+                            );
+                            record.raw_pixels = prev_pixels.clone();
+                            record.pixel_width = prev_w;
+                            record.pixel_height = prev_h;
+                        } else {
+                            tracing::warn!(
+                                "Record {}: no raw_pixels from previous record, witness unavailable",
+                                i
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Create prover: use PicoProver (real ZKVM) when compiled with

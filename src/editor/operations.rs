@@ -1,17 +1,13 @@
-//! Core image editing operations using the Photon library.
+//! Core image editing operations.
 //!
 //! Supports crop, resize, and rotation operations. Each function takes
 //! raw image bytes (JPEG or PNG) and returns the processed image as PNG
 //! bytes, along with an [`EditingRecord`] for the ZK Proof Layer.
 //!
-//! # Photon Integration
-//!
-//! Photon provides high-performance image processing. This module uses
-//! Photon for crop and the `image` crate for resize and rotation, since
-//! Photon's resize/rotate API is limited.
+//! All pixel decoding uses the `image` crate directly (not photon_rs)
+//! to ensure hash consistency with the ZK API handler and ZKVM guest.
 
 use chrono::Utc;
-use photon_rs::transform::crop as photon_crop;
 use photon_rs::PhotonImage;
 
 use super::types::{
@@ -19,20 +15,21 @@ use super::types::{
     RotationAngle, sha256_hex,
 };
 
-/// Decode image bytes into a [`PhotonImage`], returning a proper error
-/// instead of panicking on invalid input.
+/// Decode image bytes into raw RGBA pixels using the `image` crate.
 ///
-/// `PhotonImage::new_from_byteslice` internally calls `.unwrap()` and panics
-/// when the bytes are not a valid image.  We first validate via the `image`
-/// crate, which returns a `Result`, and only then hand the bytes to Photon.
-fn decode_photon(image_bytes: &[u8]) -> Result<PhotonImage, EditorError> {
-    // Quick validation – this returns Err on garbage input.
-    image::load_from_memory(image_bytes).map_err(|e| {
+/// Returns `(pixels, width, height)` where `pixels` is RGBA data.
+///
+/// IMPORTANT: This uses the `image` crate directly (not photon_rs) to ensure
+/// pixel data is identical to what the ZK API handler computes. Using
+/// photon_rs for decoding can produce different raw pixels due to its
+/// bundled image crate version differing from the project's direct dependency.
+fn decode_to_rgba(image_bytes: &[u8]) -> Result<(Vec<u8>, u32, u32), EditorError> {
+    let img = image::load_from_memory(image_bytes).map_err(|e| {
         EditorError::DecodeError(format!("failed to decode image: {e}"))
     })?;
-
-    // Safe to unwrap now – the bytes are valid.
-    Ok(PhotonImage::new_from_byteslice(image_bytes.to_vec()))
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    Ok((rgba.into_raw(), w, h))
 }
 
 /// Crop an image to the specified rectangular region.
@@ -45,14 +42,10 @@ fn decode_photon(image_bytes: &[u8]) -> Result<PhotonImage, EditorError> {
 /// * [`EditorError::DecodeError`] if the image cannot be decoded
 /// * [`EditorError::CropOutOfBounds`] if the crop region exceeds image bounds
 pub fn crop(image_bytes: &[u8], params: &CropParams) -> Result<EditResult, EditorError> {
-    let mut img = decode_photon(image_bytes)?;
-
-    let img_w = img.get_width();
-    let img_h = img.get_height();
+    let (original_raw_pixels, img_w, img_h) = decode_to_rgba(image_bytes)?;
 
     // Hash the raw RGBA pixels (not the encoded PNG/JPEG bytes)
     // so that the ZKVM guest can reproduce the same hash from raw pixels.
-    let original_raw_pixels = img.get_raw_pixels();
     let original_hash = sha256_hex(&original_raw_pixels);
 
     // Validate crop bounds
@@ -78,23 +71,24 @@ pub fn crop(image_bytes: &[u8], params: &CropParams) -> Result<EditResult, Edito
         });
     }
 
-    let cropped = photon_crop(
-        &mut img,
+    // Crop on raw RGBA pixels (matches ZKVM guest re-execution)
+    let cropped_raw_pixels = crop_pixels(
+        &original_raw_pixels,
+        img_w,
         params.x,
         params.y,
-        params.x + params.width,
-        params.y + params.height,
+        params.width,
+        params.height,
     );
-
-    // Hash the cropped raw RGBA pixels (matching what the ZKVM will compute)
-    let cropped_raw_pixels = cropped.get_raw_pixels();
     let edited_hash = sha256_hex(&cropped_raw_pixels);
 
-    let out_bytes = cropped.get_bytes();
+    // Encode as PNG for output
+    let cropped_photon = PhotonImage::new(cropped_raw_pixels, params.width, params.height);
+    let out_bytes = cropped_photon.get_bytes();
 
     Ok(EditResult {
-        width: cropped.get_width(),
-        height: cropped.get_height(),
+        width: params.width,
+        height: params.height,
         image_bytes: out_bytes,
         record: EditingRecord {
             operation: EditOperation::Crop,
@@ -133,10 +127,7 @@ pub fn resize(image_bytes: &[u8], params: &ResizeParams) -> Result<EditResult, E
     }
 
     // Decode to raw RGBA pixels for canonical hashing (matches ZKVM guest)
-    let src_img = decode_photon(image_bytes)?;
-    let original_w = src_img.get_width();
-    let original_h = src_img.get_height();
-    let original_raw_pixels = src_img.get_raw_pixels();
+    let (original_raw_pixels, original_w, original_h) = decode_to_rgba(image_bytes)?;
     let original_hash = sha256_hex(&original_raw_pixels);
 
     // Perform nearest-neighbor resize on raw RGBA pixels.
@@ -188,10 +179,7 @@ pub fn resize(image_bytes: &[u8], params: &ResizeParams) -> Result<EditResult, E
 /// * [`EditorError::DecodeError`] if the image cannot be decoded
 pub fn rotate(image_bytes: &[u8], params: &RotateParams) -> Result<EditResult, EditorError> {
     // Decode to raw RGBA pixels for canonical hashing (matches ZKVM guest)
-    let src_img = decode_photon(image_bytes)?;
-    let src_w = src_img.get_width();
-    let src_h = src_img.get_height();
-    let original_raw_pixels = src_img.get_raw_pixels();
+    let (original_raw_pixels, src_w, src_h) = decode_to_rgba(image_bytes)?;
     let original_hash = sha256_hex(&original_raw_pixels);
 
     let angle: u32 = match params.angle {
@@ -311,10 +299,28 @@ pub fn rotate_pixels(
 /// raw RGBA data (4 bytes per pixel, row-major order).
 ///
 /// This is the canonical pixel representation used for ZK proof hashing.
-/// Both the editor and ZKVM guest use this format.
+/// Uses the `image` crate directly for consistency with the ZK API handler
+/// and ZKVM guest.
 pub fn extract_raw_rgba(image_bytes: &[u8]) -> Result<(Vec<u8>, u32, u32), EditorError> {
-    let img = PhotonImage::new_from_byteslice(image_bytes.to_vec());
-    Ok((img.get_raw_pixels(), img.get_width(), img.get_height()))
+    decode_to_rgba(image_bytes)
+}
+
+/// Extract a sub-rectangle from row-major RGBA pixel data.
+///
+/// For each row in `[y..y+h]`, copies bytes `[x*4..(x+w)*4]` from
+/// the source row into the output buffer.
+fn crop_pixels(pixels: &[u8], img_w: u32, x: u32, y: u32, w: u32, h: u32) -> Vec<u8> {
+    let stride = (img_w as usize) * 4;
+    let crop_row_bytes = (w as usize) * 4;
+    let mut out = Vec::with_capacity((h as usize) * crop_row_bytes);
+
+    for row in y..(y + h) {
+        let row_start = (row as usize) * stride + (x as usize) * 4;
+        let row_end = row_start + crop_row_bytes;
+        out.extend_from_slice(&pixels[row_start..row_end]);
+    }
+
+    out
 }
 
 #[cfg(test)]
@@ -375,8 +381,7 @@ mod tests {
 
         // Verify that edited hash matches SHA-256 of cropped raw RGBA pixels
         // (not the PNG-encoded bytes)
-        let cropped_img = PhotonImage::new_from_byteslice(result.image_bytes.clone());
-        let cropped_raw = cropped_img.get_raw_pixels();
+        let (cropped_raw, _, _) = extract_raw_rgba(&result.image_bytes).unwrap();
         let expected_edited_hash = sha256_hex(&cropped_raw);
         assert_eq!(result.record.edited_image_hash, expected_edited_hash);
     }

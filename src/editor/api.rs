@@ -222,13 +222,17 @@ fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
 fn success_response(
     result: super::types::EditResult,
 ) -> (StatusCode, Json<serde_json::Value>) {
+    // Extract raw RGBA pixels for ZK proof generation
+    let raw_pixels = operations::extract_raw_rgba(&result.image_bytes)
+        .ok()
+        .map(|(pixels, _, _)| BASE64.encode(&pixels));
+
     let resp = EditResponse {
         image: BASE64.encode(&result.image_bytes),
         width: result.width,
         height: result.height,
         record: result.record,
-        // Include raw pixels for ZK proof generation
-        raw_pixels: Some(BASE64.encode(&result.image_bytes)),
+        raw_pixels,
     };
     (StatusCode::OK, Json(serde_json::to_value(resp).unwrap()))
 }

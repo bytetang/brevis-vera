@@ -59,6 +59,7 @@ export interface ZKProofRequest {
   edited_image_hash: string;
   c2pa_data?: C2PAMetadata;
   editing_records: EditingRecord[];
+  original_image?: string; // Base64 encoded original image for hash verification
 }
 
 export interface ZKProofResponse {

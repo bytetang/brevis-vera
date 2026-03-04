@@ -316,10 +316,24 @@ label {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 150ms ease;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .hash-display:hover {
   background: #f3f4f6;
+}
+
+/* Responsive: smaller font on mobile */
+@media (max-width: 480px) {
+  .hash-display {
+    font-size: 10px;
+    max-width: 200px;
+  }
 }
 
 /* Step Container */

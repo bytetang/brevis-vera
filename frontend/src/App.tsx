@@ -76,6 +76,7 @@ const App: React.FC = () => {
       const response = await generateProof({
         original_image_hash: originalImageHash,
         edited_image_hash: editedImageHash,
+        original_image: originalImage || undefined,
         c2pa_data: c2paMetadata ? {
           active_manifest: c2paMetadata.active_manifest,
           claim_generator: c2paMetadata.claim_generator,

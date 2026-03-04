@@ -585,6 +585,20 @@ impl PicoProver {
             }
         });
 
+        // Debug log editing records
+        for (i, rec) in input.editing_records.iter().enumerate() {
+            tracing::info!(
+                "Editing record {}: op={}, input_hash={}, output_hash={}, raw_pixels_len={}, pixel_w={}, pixel_h={}",
+                i,
+                rec.operation,
+                rec.input_hash,
+                rec.output_hash,
+                rec.raw_pixels.as_ref().map(|p| p.len()).unwrap_or(0),
+                rec.pixel_width.unwrap_or(0),
+                rec.pixel_height.unwrap_or(0)
+            );
+        }
+
         let editing_records = input
             .editing_records
             .iter()
@@ -602,13 +616,22 @@ impl PicoProver {
         // Build image witnesses from raw pixel data in editing records.
         // Each editing record may optionally carry raw_pixels for re-execution
         // verification inside the ZKVM guest.
-        let image_witnesses = input
+        let image_witnesses: Vec<_> = input
             .editing_records
             .iter()
             .map(|rec| {
                 if let (Some(pixels), Some(w), Some(h)) =
                     (rec.raw_pixels.as_ref(), rec.pixel_width, rec.pixel_height)
                 {
+                    // Debug: verify pixel data size
+                    let expected_len = (w as usize) * (h as usize) * 4;
+                    tracing::info!(
+                        "ImageWitness: w={}, h={}, expected_pixels={}, actual_pixels={}",
+                        w,
+                        h,
+                        expected_len,
+                        pixels.len()
+                    );
                     ImageWitness {
                         pixels: pixels.clone(),
                         width: w,
@@ -616,6 +639,7 @@ impl PicoProver {
                     }
                 } else {
                     // Empty witness for operations that don't need re-execution
+                    tracing::info!("ImageWitness: empty (no raw pixels)");
                     ImageWitness {
                         pixels: vec![],
                         width: 0,
@@ -624,6 +648,13 @@ impl PicoProver {
                 }
             })
             .collect();
+
+        tracing::info!(
+            "CircuitInput: original_image_hash={}, edited_image_hash={:?}, num_records={}",
+            input.original_image_hash,
+            input.edited_image_hash,
+            input.editing_records.len()
+        );
 
         CircuitInput {
             c2pa_data,
@@ -739,6 +770,13 @@ impl PicoProver {
                 "Failed to decode PublicValuesStruct from AOT output: {e}"
             ))
         })?;
+
+        tracing::info!(
+            "AOT PublicValues: c2pa_verified={}, editing_verified={}, pv_bytes_len={}",
+            pv.c2pa_verified,
+            pv.editing_verified,
+            pv_bytes.len()
+        );
 
         // Map guest public values back to host-side types
         let public_inputs = PublicInputs {

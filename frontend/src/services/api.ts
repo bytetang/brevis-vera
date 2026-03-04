@@ -190,6 +190,8 @@ export const generateProof = async (request: ZKProofRequest): Promise<ZKProofRes
     proof_type: 'combined',
     original_image_hash: request.original_image_hash,
     edited_image_hash: request.edited_image_hash,
+    // Include original image for hash verification
+    original_image: request.original_image,
     c2pa_data: request.c2pa_data ? {
       active_manifest: request.c2pa_data.active_manifest,
       claim_generator: request.c2pa_data.claim_generator,

@@ -31,6 +31,19 @@ use super::types::{C2paMetadata, C2paVerificationData, ImageHash, ZkvmInput};
 /// # Returns
 /// An [`ImageHash`] containing the 32-byte SHA-256 digest.
 pub fn compute_image_hash(data: &[u8]) -> ImageHash {
+    // Try to decode as image and compute hash from raw RGBA pixels
+    // This matches the editor's hash computation
+    if let Ok(img) = image::load_from_memory(data) {
+        let rgba = img.to_rgba8();
+        let mut hasher = Sha256::new();
+        hasher.update(rgba.as_raw());
+        let result = hasher.finalize();
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&result);
+        return ImageHash(hash);
+    }
+
+    // Fallback: compute hash from raw bytes if image decoding fails
     let mut hasher = Sha256::new();
     hasher.update(data);
     let result = hasher.finalize();

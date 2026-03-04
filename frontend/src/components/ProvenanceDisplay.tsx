@@ -112,25 +112,9 @@ const ProvenanceDisplay: React.FC<ProvenanceDisplayProps> = ({ metadata, hasC2PA
               <code
                 className="hash-display"
                 onClick={() => imageHash && copyToClipboard(imageHash)}
-                style={{
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '4px 8px',
-                  borderRadius: 4,
-                  background: '#f9fafb',
-                  color: '#4b5563',
-                  maxWidth: '100%',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
               >
                 {imageHash}
-                <CopyOutlined style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }} />
+                <CopyOutlined style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0, marginLeft: 6 }} />
               </code>
             </Tooltip>
             {copied && (

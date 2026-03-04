@@ -14,7 +14,7 @@ interface ImageEditorProps {
 
 const ImageEditor: React.FC<ImageEditorProps> = ({ imageBase64, onImageEdited, disabled }) => {
   const [loading, setLoading] = useState(false);
-  const [cropParams, setCropParams] = useState({ x: 0, y: 0, width: 100, height: 100 });
+  const [cropParams, setCropParams] = useState({ x: 432, y: 288, width: 3456, height: 2304 });
   const [resizeParams, setResizeParams] = useState({ width: 800, height: 600 });
 
   const handleCrop = async () => {
@@ -103,7 +103,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ imageBase64, onImageEdited, d
               <InputNumber
                 min={1}
                 value={cropParams.width}
-                onChange={(v) => setCropParams({ ...cropParams, width: v || 100 })}
+                onChange={(v) => setCropParams({ ...cropParams, width: v || 1 })}
                 disabled={disabled}
                 style={{ width: 70 }}
                 size="small"
@@ -114,7 +114,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ imageBase64, onImageEdited, d
               <InputNumber
                 min={1}
                 value={cropParams.height}
-                onChange={(v) => setCropParams({ ...cropParams, height: v || 100 })}
+                onChange={(v) => setCropParams({ ...cropParams, height: v || 1 })}
                 disabled={disabled}
                 style={{ width: 70 }}
                 size="small"
