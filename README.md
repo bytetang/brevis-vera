@@ -75,26 +75,26 @@ Host Application
 ┌─────────────────────────┐
 │  1. Prepare Input       │
 │  - CircuitInput         │
-│  - C2PA data (optional)│
-│  - Editing records     │
-│  - Image witnesses     │
+│  - C2PA data (optional) │
+│  - Editing records      │
+│  - Image witnesses      │
 └─────────────────────────┘
       │
       ▼ (stdin)
 ┌─────────────────────────┐
-│  2. ZKVM Execution     │
-│  - Verify C2PA         │
-│  - Verify ECDSA sig    │
-│  - Re-execute edits    │
-│  - Verify hash chain   │
+│  2. ZKVM Execution      │
+│  - Verify C2PA          │
+│  - Verify ECDSA sig     │
+│  - Re-execute edits     │
+│  - Verify hash chain    │
 └─────────────────────────┘
       │
       ▼ (commit_bytes)
 ┌─────────────────────────┐
-│  3. Public Values      │
-│  - Verification bools │
-│  - Image hashes        │
-│  - Operation count     │
+│  3. Public Values       │
+│  - Verification bools   │
+│  - Image hashes         │
+│  - Operation count      │
 └─────────────────────────┘
       │
       ▼
@@ -306,7 +306,7 @@ Original Image                    Edited Image
      │                                                          │
      ▼                                                          │
   ┌──────────────┐    SHA-256(result₁)    ┌──────────────┐      │
-  │  Operation 1 │ ──→ output_hash₁ ──→  │  Operation 2 │      │
+  │  Operation 1 │ ──→ output_hash₁ ──→   │  Operation 2 │      │
   │  (e.g. crop) │     = input_hash₁      │ (e.g.rotate) │      │
   └──────────────┘                        └──────────────┘      │
                                             │                   │
